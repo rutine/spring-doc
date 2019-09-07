@@ -1,7 +1,7 @@
 # Spring 高级容器原理 - 深入源码
 
 
-### 前述
+## 前述
 
 在**java**技术栈中, 大多**java**开发者、公司都会用到**Spring**提供的技术能力. **Spring**官方开发了很多的项目, 如**Spring Framework**、**Spring Boot**、**Spring Cloud**、**Spring Session**.
 其中**IOC**容器是**Spring**的核心技术支持, **Spring**内部绝大多数项目都依赖该项技术. 在我参与开发的很多项目中, 几乎都离不开**Spring IOC**容器这一基础技术. 使用**Spring IOC**容器中, 在所难免会遇到一些疑问, 时常会出现抛出找不到属性依赖的对象异常, 刚开始遇到这样问题很多时候都是在网上搜索查找解决方案. 然而, 查找有效信息是件很费经的事, 且经常会遇到重复的问题, 又因过分依赖网上搜索引擎、对框架本身深不可测, 且对问题的解决方法大多是拿来主义而没有形成固有经验, 如是重复这样的过程, 就会导致为了解决一个问题花费太多的搜索时间. 这也是我理解的新手和经验老手之间的距离. 经验老手可以在遇到问题时快速的定位问题并找到解决方法, 而新手对于一个很浅显的异常都有可能不知所措, 不断网上搜索, 在技术群问.
@@ -9,9 +9,9 @@
 俗话说, "磨刀不误砍柴工", 对一项技术工具了解越多, 掌握的越深, 在项目开发中越得心应手, 遇到问题总会快速、有效的定位并解决. 本文从**Spring IOC**容器为入口, 深入源码原理, 帮助你在遇到**Spring IOC**异常如何更快定位问题并解决它, 挖掘在项目中如何更好的应用. 掌握**Spring IOC**原理, 对理解并应用其他相关的支持组件都有很大的帮助, 所以建议读者深刻理解并掌握**Spring IOC**原理.
 
 
-### 容器
+## 容器
 
-一. 容器概览
+##### 一、 容器概览
 
 以一张图来看看, **Spring IOC**容器包含哪些东西  
 ![Spring 容器](images/spring-ioc.png)
@@ -39,7 +39,7 @@
 * `LifecycleProcessor` 容器生命周期处理器, 是容器初始化完成后, 可以自动启动实现了`Lifecycle`接口的扩展组件, 如`rabbitmq`客户端组件就是应用了这个机制. 当容器初始化完成后, 容器引导`rabbitmq`启动, `rabbitmq`客户端组件内部开始执行`rabbitmq`客户端连接到`rabbitmq`服务器, 创建监听器监听队列消息等一系列初始化工作. 
 
 
-二. 如何创建一个新容器
+#### 二、 如何创建一个新容器
 
 **Spring**容器是设计为父子层级容器, 子容器可以继承公共父容器的**Bean**实例, 这对于某些场景需要多个不同隔离的子容器提供了支持. 比如在**Spring MVC**中, 展现层`Bean`位于一个子容器中, 而业务层和持久层的`Bean`位于父容器中. 这样, 展现层`Bean`就可以引用业务层和持久层的Bean, 而业务层和持久层的`Bean`则看不到展现层的`Bean`.
 创建**Spring**容器可以以XML文件声明式和注解编码两种方式, 或者混用两种方式.
@@ -122,7 +122,7 @@ public class SpringContainer {
 刷新方法是必须的, 容器初始化大量相关的工作需要调用该方法.
 
 
-三. 容器启动流程
+#### 三、 容器启动流程
 
 通过前面的示例, 创建一个容器很简单, 仅两三行代码就完成了. 我们输入一个配置类或者包名, 最后容器输出事先定义的`Bean`实例(仅限单例会预先创建, 多例要在运行时动态创建), 容器里面到底发生了什么, 我们不知晓,
 一般来说也不需要关心, 容器自身保证输出的`Bean`实例及依赖关系的正确性. 让我们窥视下这个黑盒子做了哪些工作:  
@@ -141,7 +141,7 @@ public class SpringContainer {
 
 总结一下, 前面介绍了在容器启动流程中涉及到几个比较重要的类, 每个类承担着不同却异常重要的角色, 每个类都是独立的但又相互联系, 若即若离组成了一个设计良好、完整的容器所必须的功能. 这些类实例都是为容器开始初始化做足前期准备, 容器正式启动并完成初始化是调用`refresh`方法.
 
-### 深入源码与原理
+## 深入源码与原理
 
 从本小节开始, 将会以`AnnotationConfigApplicationContext`为起点深入'每行'代码的讲解, 应该说不是真正的做到每一行代码, 而是把绝大多数、有意义、影响到全文理解的都会进行讲解分析. 后面会看到大量的`copy`源码. 在这里, 而没有建议读者直接回到专业的编辑工具去查阅源码. 目的就是为了减少来回切换, 影响阅读连贯性, 增强可读性, 更好的理解和更容易的掌握. 在源码讲解过程中, 对有些代码类会增加一些场景使用代码来进一步说明. 理解是缘由, 场景实战才是目的. 
 
@@ -264,7 +264,7 @@ public class AnnotationConfigUtils {
 3. 第三阶段, 创建`Bean`定义声明对应的实例对象及初始化, 除了配置类处理器, 后面注册的其他注解处理器, 在创建实例和初始化对象过程被触发调用, 解决依赖属性、校验依赖是否满足、包装方法(事件监听器)
 
 
-### `AnnotationAwareOrderComparator` 源码分析
+## `AnnotationAwareOrderComparator` 源码分析
 
 该类在容器中有两大用处, 第一用处在容器内部调用PostProcessor处理器时, 优先触发调用实现了接口`Ordered`或注解`@Order`的处理器, 值越小越优先被触发. 第二用处在属性依赖选择时, 当属性依赖只需一个种子`Bean`, 而容器发现存在多个种子`Bean`, 根据`@Priority`注解, 值小者被选择性更高, 存在优先级一样等不确定时容器会抛出异常
 ```java
@@ -332,7 +332,7 @@ public class AnnotationAwareOrderComparator {
 `FirstAutowire`优先级是1 所以在单属性依赖时被优先选择注入. 在数组属性依赖的注入值可以看到, 因为`FirstAutowire`的排序号3 所以在数组的排序是2
 
 
-### `ContextAnnotationAutowireCandidateResolver` 源码分析
+## `ContextAnnotationAutowireCandidateResolver` 源码分析
 
 自动绑定备选项选择器用于判断一个`Bean`对象是否可作为"种子`Bean`"被绑定到属性依赖, 在实际应用中, 当存在多个"种子`Bean`"时, 我们可以通过`@Qualifier`设置一个匹配值来过滤, `ContextAnnotationAutowireCandidateResolver` 类通过继承关系来区分不同基础类的功能和职责:  
 ![Spring 自动绑定备选项选择器](images/spring-autowire-candidate-resolver.png)
@@ -352,7 +352,7 @@ public class AnnotationAwareOrderComparator {
 
 知识前知道: `BeanDefinition`类, 是对`XML`或者注解`@Bean`方式声明`Bean`定义的元数据表达, 其中最主要的元数据是`beanClassName`, `factoryBeanName`与`factoryMethodName`, 在配置元数据定义时, 如果设置`beanClassName`, 说明`Bean`实例的类型就是名字所指的类型, 如果设置`factoryBeanName`和`factoryMethodName`, `Bean`实例是由`factoryBeanName`所指的工厂`Bean`来创建, 创建的方法是`factoryMethodName`指定的方法名, `Bean`的类型是方法返回类型能够表达的类型.
 
-一. 父类`GenericTypeAwareAutowireCandidateResolver`自动绑定备选项泛型类型选择器源码
+#### 一、 父类`GenericTypeAwareAutowireCandidateResolver`自动绑定备选项泛型类型选择器
 
 ```java
 public class GenericTypeAwareAutowireCandidateResolver {
@@ -483,7 +483,7 @@ public class GenericTypeAwareAutowireCandidateResolver {
 
 在自动绑定备选项泛型类型选择器源码中, 说明了属性依赖怎么检查一个种子`Bean`是否符合匹配属性依赖类型关系. 可能会产生这样的情况, 找到多个符合属性依赖的种子`Bean`. 如果属性依赖是数组、集合还好, 假如是某个具体类型属性实例呢, 这在应用中很常见的一种属性依赖配置. 面对这种情况该如何如选择出或标识一个更符合属性依赖的种子`Bean`, **Spring**提供了解决方案, 就是通过注解`@Qualifier`, 指定该注解的属性值, 需要属性依赖和种子`Bean`两边都配置这个注解并设置同样的注解属性值, 以这种注解限定符方式进一步匹配得到最终的资格`Bean`
 
-二. `QualifierAnnotationAutowireCandidateResolver`自动绑定备选项限定符注解选择器源码
+#### 二、 `QualifierAnnotationAutowireCandidateResolver`自动绑定备选项限定符注解选择器
 
 ```java
 public class QualifierAnnotationAutowireCandidateResolver {
@@ -672,7 +672,7 @@ public class QualifierAnnotationAutowireCandidateResolver {
 
 `@Value`注解的处理逻辑比较简单, 查找属性依赖的`@Value`注解, 提取`@Value`注解`value`属性的值并返回. 然后由容器处理这个`value`的属性值, 如"${}"通过查找配置属性文件的属性值, 如"#{}"通过表达式求值获取, 然后把最终求得的值注入到属性依赖
 
-三. `ContextAnnotationAutowireCandidateResolver`自动绑定备选项配置注解选择器源码
+#### 三、 `ContextAnnotationAutowireCandidateResolver`自动绑定备选项配置注解选择器
 
 ```java
 public class ContextAnnotationAutowireCandidateResolver {
@@ -756,16 +756,16 @@ public class ContextAnnotationAutowireCandidateResolver {
 运行效果告诉我们, 虽然每次调用属性依赖`prototypeBean`的`getThis()`方法, 但是每次返回的`this`都是不同的对象, 如果把`@Lazy`注解注释掉的话, 每次返回的`this`就会同一个对象了. 至此, 让我们学到了在实际应用中如何解决单例依赖多例的问题. 需要指出的是, 其实还有别的方法也可以解决单例依赖多例的问题, 这里只是说出了一种方式而已.
 
 
-### `ConfigurationClassPostProcessor` 源码分析
+## `ConfigurationClassPostProcessor` 源码分析
 
-被`@Configuration` 注解的类叫做配置类, 类似XML文件那样配置`Bean`定义声明, 只不过这种是在`class`类配合`@Configuration`注解表示当前类是声明`Bean`定义的配置类. `ConfigurationClassPostProcessor`叫做配置类后置处理器, 用来解析、读取、查找和注册配置类中的`Bean`定义声明. 在开始讲解配置类后置处理前, 先介绍一些涉及到的重要基础组件原理及源码.
+被`@Configuration` 注解的类叫做配置类, 类似XML文件那样配置`Bean`定义声明, 只不过这种是在`class`类配合`@Configuration`注解表示当前类是声明`Bean`定义的配置类. `ConfigurationClassPostProcessor`叫做配置类后置处理器, 用来解析、读取、查找和注册配置类中的`Bean`定义声明. 在开始讲解配置类后置处理前, 先介绍一些重要的基础组件的源码和原理.
 
-一. `MetadataReaderFactory` 类元数据读析器工厂
+#### 一、 `MetadataReaderFactory` 元数据读取器工厂
 
-类元数据读析器工厂根据给定的类名, 通过资源加载器`ResourceLoader`载入数据流, 创建一个类元数据读析器`MetadataReader`实例, 类元数据读析器是一种使用`ASM`字节码读取技术的框架(**Spring**已内部集成), 这里不对字节码读取技术做讲解. `MetadataReaderFactory` 接口定义：
+元数据读取器工厂根据给定的类名, 通过资源加载器`ResourceLoader`载入数据流, 创建一个元数据读取器`MetadataReader`实例, 元数据读取器是一种使用`ASM`字节码读取技术的框架(**Spring**已内部集成), 这里不对字节码读取技术做讲解. `MetadataReaderFactory` 接口定义：
 ```java
 /**
- * 类元数据读析器工厂, 有两个实现, 一个是简单的实现, 另一个可以缓存, 避免每次重复创建同个类的元数据读析器实例
+ * 元数据读取器工厂, 有两个实现, 一个是简单的实现, 另一个可以缓存, 避免每次重复创建相同类的元数据读取器实例
  *
  * @see SimpleMetadataReaderFactory
  * @see CachingMetadataReaderFactory
@@ -773,7 +773,7 @@ public class ContextAnnotationAutowireCandidateResolver {
 public interface MetadataReaderFactory {
     
   /**
-   * 获取给定类名的元数据读析器实例
+   * 获取给定类名的元数据读取器实例
    */
   MetadataReader getMetadataReader(String className) throws IOException;
   
@@ -788,7 +788,7 @@ public interface MetadataReaderFactory {
 
 看到这里, 复杂吧、严格吧? 我们还只是希望得到类在内存中结构表示的元数据信息, 通过对元数据的识别和处理, 最后需要`Bean`对象时才通知JVM去加载类并创建类的实例对象. 要是容器不需要这个类, 就没必要加载到虚拟机. 所以这里通过字节码技术直接装载到内存进行各种操作判断更加方便和简单
 
-二. `ImportSelector` 导入选择器
+#### 二、 `ImportSelector` 导入选择器
 
 导入选择器根据策略选择性引入其他的类, 我们称导入其他类的类为"主动类", 被导入的类称为"被动类". 导入选择器通过读取一个或多个"主动类"上的注解属性值, 根据属性值选择性返回"被动类"的名字, `ImportSelector`接口定义：
 ```java
@@ -822,9 +822,9 @@ public class ContextConfig {
 ```
 至此我们已经知道了怎么编写一个`ImportSelector`导入选择器接口实现的应用实例. 先创建接口实现类, 接着自定义注解并导入该接口实现类, 然后在配置类主入口使用自定义的注解并设置一个选项值表明要导入哪个"被动类"
 
-三. `ImportBeanDefinitionRegistrar` 导入`Bean`定义声明注册器
+#### 三、 `ImportBeanDefinitionRegistrar` 导入`Bean`定义声明注册员
 
-导入`Bean`定义声明注册器, 与配置类使用`@Bean` 注解在方法级别声明`Bean`定义相比, 该接口提供了一种另外的更加原始的方式声明`Bean`定义. 我们可以使用`@Import` 注解在配置类或`ImportSelector`实现类导入该类型的注册器实现, 当然也可以通过`ImportSelector`实现类的方法上返回该类型的注册器实现的名字. 接口定义:
+导入`Bean`定义声明注册员, 与配置类使用`@Bean` 注解在方法级别声明`Bean`定义相比, 该接口提供了一种另外的更加原始的方式声明`Bean`定义. 我们可以在配置类或者`ImportSelector`类上使用`@Import`注解导入注册员类, 也可以通过`ImportSelector`类的实现方法上返回注册员类名称. 接口定义:
 ```java
 public interface ImportBeanDefinitionRegistrar {
   /**
@@ -836,10 +836,10 @@ public interface ImportBeanDefinitionRegistrar {
 }
 ```
 
-原始方式声明并注册`Bean`定义演示代码:
-> ![Spring 导入Bean定义声明注册器代码](images/spring-bean-import-bean-definition-registrar-code.png)
+原始方式声明注册`Bean`定义演示代码:
+> ![Spring 导入Bean定义声明注册员代码](images/spring-bean-import-bean-definition-registrar-code.png)
 
-四. `ConfigurationClass` 配置类模型
+#### 四、 `ConfigurationClass` 配置类模型
 
 配置类模型是对那些被`@Configuration` 注解的类的结构描述, 称为配置类, 配置类模型封装了被`@Configuration`注解的类的所有信息. 相对于XML文件方式声明`Bean`定义, 配置类模型是一种使用编码方式声明`Bean`定义. 真实的、完整的配置类模型示例代码:
 > ![Spring 配置类示例代码](images/spring-config-class-code.png)
@@ -905,7 +905,7 @@ final class ConfigurationClass {
 ```
 通过源码可以看出, 在配置类模型上的`@ImportResource`、`@Import`, `@Bean`注解被解析并得到配置类模型内部结构定义的几个属性值. 除了验证方法`validate`需要注意外, 其他都是简单的`setter`、`getter`方法, 所以这里没有更多的展示这些代码. 接下来看看如何解析配置类模型对象的源码
 
-五. `ConfigurationClassParser` 配置类解析器
+#### 五、 `ConfigurationClassParser` 配置类解析器
 
 配置类解析器使用字节码读取技术, 读取类文件到内存构造元数据结构, 解析元数据结构并生成一组配置类对象. 避免即时加载和反射操作带来的性能开销. 配置类解析器源码比较多, 将分为三个部分来讲解: 内部类、配置类 属性和方法
 
@@ -943,8 +943,8 @@ class ImportStack extends ArrayDeque<ConfigurationClass> implements ImportRegist
 }
 ```
 `ImportStack` 有两个作用:
-1. 通过一个允许多值的Map结构记录了被动类名称和主动类之间的关系. 因为被动类可以被多个主动类导入, 根据被动类获取主动类方法返回的是导入被动类最近的那个主动类元数据. 移除主动类时, 循环Map移除所有匹配的. 在循环处理配置类`Bean`定义选项时, 如先处理A`Bean`定义, 发现导入了B`Bean`定义, 然后注册到导入堆栈, 接着处理B`Bean`定义, 发现导入了A`Bean`定义, 这是链路循环导入异常. 适用非递归下检测循环导入
-2. 导入堆栈继承`ArrayDeque`类, 所以具有入栈出栈功能. 在递归解析处理配置类`Bean`定义选项情况下, 通过堆栈可以方便发现重复入栈这种异常行为. 
+* 通过一个允许多值的Map结构记录了被动类名称和主动类之间的关系. 因为被动类可以被多个主动类导入, 根据被动类获取主动类方法返回的是导入被动类最近的那个主动类元数据. 移除主动类时, 循环Map移除所有匹配的. 在循环处理配置类`Bean`定义选项时, 如先处理A`Bean`定义, 发现导入了B`Bean`定义, 然后注册到导入堆栈, 接着处理B`Bean`定义, 发现导入了A`Bean`定义, 这是链路循环导入异常. 适用非递归下检测循环导入
+* 导入堆栈继承`ArrayDeque`类, 所以具有入栈出栈功能. 在递归解析处理配置类`Bean`定义选项情况下, 通过堆栈可以方便发现重复入栈这种异常行为. 
 
 `SourceClass` 对原`class`的简单封装, 提供统一的操作方式, 且不用关心`class`是如何被加载的(字节码读取还是JVM加载)
 ```java
@@ -1496,7 +1496,7 @@ class ConfigurationClassParser {
    * 获取父类, 进入步骤**2**递归处理
 4. 记录配置类对象供后续"配置类`Bean`定义读取器"使用
 
-五. `ConfigurationClassBeanDefinitionReader` 配置类`Bean`定义读取器
+#### 六、 `ConfigurationClassBeanDefinitionReader` 配置类`Bean`定义读取器
 
 `Bean`定义读取器接受读取解析器解析得出的`Bean`定义并登记注册到容器的一个组件. 读取器主要注册三个来源的`Bean`定义: 配置类`Bean`定义(`ConfigurationClass`)、XML`Bean`定义(`BeanDefinitionReader`)、`Bean`定义登记员(`ImportBeanDefinitionRegistrar`). 相对于解析配置类阶段, 因为现在是注册`Bean`定义阶段, 读取器通过`TrackedConditionEvaluator`状态跟踪求值器过滤一个`Bean`定义是否忽略被注册, 该类的处理过程是判断当前的配置类定义是否应被忽略, 若否, 继续判断是否是被引入, 如果是被引入的则判断主动引入是否被忽略的, 若主动引入被忽略, 那么被引入也应被忽略注册到容器. XML方式声明注册到容器的`Bean`定义类型是`RootBeanDefinition`, 通过配置类代码注解方式声明注册到容器的`Bean`定义类型是`ConfigurationClassBeanDefinition`.
 
@@ -1685,7 +1685,7 @@ class ConfigurationClassBeanDefinitionReader {
 ```
 详细分析了加载注册配置类模型的一组`Bean`定义源码, 及根据方法元数据如何创建一个`Bean`定义并注册到容器的每一步细节. 在这里省略对通过XML方式和登记员方法注册`Bean`定义的方法分析. 代码方式配置声明`Bean`定义是主流, 所以详细分析这个是必要的, 对于XML方式, 有兴趣的可以自行查阅相关源码. 对于登记员方式, 其实一开始在讲解配置类后置处理器时就提到分析过.
 
-六. `ConfigurationClassEnhancer` 配置类增强
+#### 七、 `ConfigurationClassEnhancer` 配置类增强
 
 配置类增强使用**CGLIB**提供的字节码生成技术, **Spring**框架已把相关的代码纳入到自己的核心包里, 在实际应用中就无需单独添加**CGLIB**包的依赖. 配置类增强将我们定义的配置类模型重新生成新的子类并增强：增加公有的`$$beanFactory`属性, 引用`BeanFactory`; 增加实现`BeanFactoryAware`接口; 增加`Bean`容器感知拦截器和`@Bean`方法拦截器. 
 
@@ -2036,3 +2036,6 @@ class ConfigurationClassEnhancer {
     }
 }
 ```
+通过对配置类增强源码分析, 重点在于对配置类`@Bean`注解方法的过滤拦截. 容器按两种`Bean`类型处理, `FactoryBean`和非`FactoryBean`. 对`@Bean`注解方法也分为两种调用, 一种是由容器触发的容器调用, 一种是在一个`@Bean`注解方法调用另一个`@Bean`注解方法的用户调用. 对于容器调用, 不管`FactoryBean`和非`FactoryBean`都走`@Bean`注解方法内部代码逻辑. 对于用户调用, 得区分`FactoryBean`和非`FactoryBean`类型两种情况. 如果是`FactoryBean`, 则进行代理或者字节码增强, 拦截`getObject()`方法调用并从容器获取对应的`Bean`实例, 这样可以保证得到正确的范围实例对象. 如果是非`FactoryBean`, 那么直接从容器获取对应的`Bean`实例. 通过对`@Bean`注解方法的过滤拦截, 保证注解方法代码只执行一次, 之后获取实例都是从容器获取(非多例模型). 如果是多例模型, 还是要走`@Bean`注解方法调用, 并触发注解方法过滤拦截, 因为容器不存在实例, 继而走容器调用逻辑.
+
+#### 八、 `ConfigurationClassPostProcessor` 配置类后置处理器
