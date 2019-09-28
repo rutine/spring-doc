@@ -327,7 +327,7 @@ public class AnnotationAwareOrderComparator {
 > ![Spring 优先级依赖代码](images/spring-priority-dependency-code.png)
 
 实际运行效果:  
-  ![Spring 优先级依赖](images/spring-priority-dependency.png)
+  ![Spring 优先级依赖](images/spring-priority-dependency-case.png)
 
 `FirstAutowire`优先级是1 所以在单属性依赖时被优先选择注入. 在数组属性依赖的注入值可以看到, 因为`FirstAutowire`的排序号3 所以在数组的排序是2
 
@@ -335,7 +335,7 @@ public class AnnotationAwareOrderComparator {
 ## `ContextAnnotationAutowireCandidateResolver` 源码分析
 
 自动绑定备选项选择器用于判断一个`Bean`对象是否可作为"种子`Bean`"被绑定到属性依赖, 在实际应用中, 当存在多个"种子`Bean`"时, 我们可以通过`@Qualifier`设置一个匹配值来过滤, `ContextAnnotationAutowireCandidateResolver` 类通过继承关系来区分不同基础类的功能和职责:  
-![Spring 自动绑定备选项选择器](images/spring-autowire-candidate-resolver.png)
+![Spring 自动绑定备选项选择器](images/spring-autowire-candidate-resolver-class.png)
 
 继承两个类(一个间接继承), 实现两个接口, 主要是对`AutowireCandidateResolver`接口的实现, 类`GenericTypeAwareAutowireCandidateResolver`如其名字, 主要比对"种子`Bean`"和属性依赖的泛型是否匹配, 类`QualifierAnnotationAutowireCandidateResolver`在泛型比对基础上增加了`@Qualifier`限定符注解属性值的匹配.
 
@@ -751,7 +751,7 @@ public class ContextAnnotationAutowireCandidateResolver {
 > ![Spring 自动绑定备选项配置注解选择器-属性依赖懒注入代码](images/spring-lazy-dependency-code.png)
 
 属性依赖懒注入代码运行效果:
-  ![Spring 自动绑定备选项配置注解选择器-属性依赖懒注入](images/spring-lazy-dependency.png)
+  ![Spring 自动绑定备选项配置注解选择器-属性依赖懒注入](images/spring-lazy-dependency-case.png)
 
 运行效果告诉我们, 虽然每次调用属性依赖`prototypeBean`的`getThis()`方法, 但是每次返回的`this`都是不同的对象, 如果把`@Lazy`注解注释掉的话, 每次返回的`this`就会同一个对象了. 至此, 让我们学到了在实际应用中如何解决单例依赖多例的问题. 需要指出的是, 其实还有别的方法也可以解决单例依赖多例的问题, 这里只是说出了一种方式而已.
 
@@ -2039,3 +2039,205 @@ class ConfigurationClassEnhancer {
 通过对配置类增强源码分析, 重点在于对配置类`@Bean`注解方法的过滤拦截. 容器按两种`Bean`类型处理, `FactoryBean`和非`FactoryBean`. 对`@Bean`注解方法也分为两种调用, 一种是由容器触发的容器调用, 一种是在一个`@Bean`注解方法调用另一个`@Bean`注解方法的用户调用. 对于容器调用, 不管`FactoryBean`和非`FactoryBean`都走`@Bean`注解方法内部代码逻辑. 对于用户调用, 得区分`FactoryBean`和非`FactoryBean`类型两种情况. 如果是`FactoryBean`, 则进行代理或者字节码增强, 拦截`getObject()`方法调用并从容器获取对应的`Bean`实例, 这样可以保证得到正确的范围实例对象. 如果是非`FactoryBean`, 那么直接从容器获取对应的`Bean`实例. 通过对`@Bean`注解方法的过滤拦截, 保证注解方法代码只执行一次, 之后获取实例都是从容器获取(非多例模型). 如果是多例模型, 还是要走`@Bean`注解方法调用, 并触发注解方法过滤拦截, 因为容器不存在实例, 继而走容器调用逻辑.
 
 #### 八、 `ConfigurationClassPostProcessor` 配置类后置处理器
+
+调用容器`registry`或者`scan`包名扫描方法创建并注册到容器的`Bean`定义是最原始的`Bean`定义. 可能这些`Bean`定义中有些是配置类型的`Bean`定义, 我们需要从配置类型的`Bean`定义中发现、解析、创建并注册新的`Bean`定义. 配置类后置处理器就是专门用来处理配置模型声明的`Bean`定义, 并从中解析找到新的`Bean`定义及注册到容器. 这是一个自动化的过程, 也是容器实例化过程中的第一步要做的主要工作: 发现并创建`Bean`定义. 容器的`Bean`实例都是根据事先声明好的`Bean`定义来创建的, 所以创建注册`Bean`定义工作很重要. 配置类后置处理器处在容器生命周期的初始阶段, 在容器初始化时仅有的一次执行机会. 所以在这个阶段用它来处理`Bean`定义发现、解析、创建工作最好不过了.
+
+配置类后置处理器继承关系:
+![Spring 配置类后置处理器继承关系](images/spring-config-post-processor-class.png)
+
+实现`BeanDefinitionRegistryPostProcessor`接口, 该接口继承了`BeanFactoryPostProcessor`接口, 所以说配置类后置处理器是在容器声明周期的开始阶段. 实现了`PriorityOrdered`优先级接口, 所以会被容器优先调用. 实现了几个容器回调感知接口.
+
+配置类后置处理器核心实现细节流程图：
+![Spring 配置类后置处理器实现流程图](images/spring-config-post-processor-flow.png)
+
+源码分析:
+```java
+class ConfigurationClassPostProcessor {
+
+  //1. 先后置处理`Bean`定义注册器, 解析配置类声明的`Bean`定义
+  @Override
+  public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) {
+    int registryId = System.identityHashCode(registry);
+    if (this.registriesPostProcessed.contains(registryId)) {
+      throw new IllegalStateException(
+          "postProcessBeanDefinitionRegistry already called on this post-processor against " + registry);
+    }
+    if (this.factoriesPostProcessed.contains(registryId)) {
+      throw new IllegalStateException(
+          "postProcessBeanFactory already called on this post-processor against " + registry);
+    }
+    this.registriesPostProcessed.add(registryId);
+
+    processConfigBeanDefinitions(registry);
+  }
+    
+  //2. 后置处理`Bean`工厂容器, 增强配置类
+  @Override
+  public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+    int factoryId = System.identityHashCode(beanFactory);
+    if (this.factoriesPostProcessed.contains(factoryId)) {
+      throw new IllegalStateException(
+          "postProcessBeanFactory already called on this post-processor against " + beanFactory);
+    }
+    this.factoriesPostProcessed.add(factoryId);
+    if (!this.registriesPostProcessed.contains(factoryId)) {
+      //容器没有`Bean`定义注册器后置处理器, 延迟在这里`Bean`工厂后置处理器执行
+      processConfigBeanDefinitions((BeanDefinitionRegistry) beanFactory);
+    }
+
+    //对配置类执行类增强
+    enhanceConfigurationClasses(beanFactory);
+    //添加[导入感知]`Bean`后置处理器, 让一个实现`ImportAware`接口的`Bean`知道自己是被谁导入的
+    beanFactory.addBeanPostProcessor(new ImportAwareBeanPostProcessor(beanFactory));
+  }
+  
+  //3. 详细处理`Bean`定义注册器中的配置类`Bean`定义
+  public void processConfigBeanDefinitions(BeanDefinitionRegistry registry) {
+    //1. 查找候选配置类定义
+    List<BeanDefinitionHolder> configCandidates = new ArrayList<BeanDefinitionHolder>();
+    String[] candidateNames = registry.getBeanDefinitionNames();
+    for (String beanName : candidateNames) {
+      BeanDefinition beanDef = registry.getBeanDefinition(beanName);
+      //已处理跳过(bean定义的一个属性判断是否处理过)
+      if (ConfigurationClassUtils.isFullConfigurationClass(beanDef) ||
+          ConfigurationClassUtils.isLiteConfigurationClass(beanDef)) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("Bean definition has already been processed as a configuration class: " + beanDef);
+        }
+      }
+      //未处理
+      else if (ConfigurationClassUtils.checkConfigurationClassCandidate(beanDef, this.metadataReaderFactory)) {
+        configCandidates.add(new BeanDefinitionHolder(beanDef, beanName));
+      }
+    }
+
+    //没有配置类定义, 直接返回
+    if (configCandidates.isEmpty()) {
+      return;
+    }
+
+    //2. 排序. 根据@Order注解的值排序, 值越小越优先被处理
+    Collections.sort(configCandidates, new Comparator<BeanDefinitionHolder>() {
+      @Override
+      public int compare(BeanDefinitionHolder bd1, BeanDefinitionHolder bd2) {
+        int i1 = ConfigurationClassUtils.getOrder(bd1.getBeanDefinition());
+        int i2 = ConfigurationClassUtils.getOrder(bd2.getBeanDefinition());
+        return (i1 < i2) ? -1 : (i1 > i2) ? 1 : 0;
+      }
+    });
+
+    //3.查找已存在的`Bean`名字生成器
+    SingletonBeanRegistry singletonRegistry = null;
+    if (registry instanceof SingletonBeanRegistry) {
+      singletonRegistry = (SingletonBeanRegistry) registry;
+      if (!this.localBeanNameGeneratorSet && singletonRegistry.containsSingleton(CONFIGURATION_BEAN_NAME_GENERATOR)) {
+        BeanNameGenerator generator = (BeanNameGenerator) singletonRegistry.getSingleton(CONFIGURATION_BEAN_NAME_GENERATOR);
+        this.componentScanBeanNameGenerator = generator;
+        this.importBeanNameGenerator = generator;
+      }
+    }
+
+    //4. 创建配置类解析器
+    ConfigurationClassParser parser = new ConfigurationClassParser(
+        this.metadataReaderFactory, this.problemReporter, this.environment,
+        this.resourceLoader, this.componentScanBeanNameGenerator, registry);
+
+    //5.循环解析, 得记录已解析的, 每解析一个配置类可能又往容器新增配置类, 所以每一次循环都是从容器获取所有减去已解析的就是新的未被解析的配置类
+    Set<BeanDefinitionHolder> candidates = new LinkedHashSet<BeanDefinitionHolder>(configCandidates);
+    Set<ConfigurationClass> alreadyParsed = new HashSet<ConfigurationClass>(configCandidates.size());
+    do {
+      //5.1. 对一批执行解析
+      parser.parse(candidates);
+      parser.validate();
+
+      //5.2. 获取解析得到的并减去已解析的
+      Set<ConfigurationClass> configClasses = new LinkedHashSet<ConfigurationClass>(parser.getConfigurationClasses());
+      configClasses.removeAll(alreadyParsed);
+
+      //5.3. 注册新解析的, 并把新解析的添加到已解析记录中
+      if (this.reader == null) {
+        this.reader = new ConfigurationClassBeanDefinitionReader(
+            registry, this.sourceExtractor, this.resourceLoader, this.environment,
+            this.importBeanNameGenerator, parser.getImportRegistry());
+      }
+      this.reader.loadBeanDefinitions(configClasses);
+      alreadyParsed.addAll(configClasses);
+
+      candidates.clear();
+      if (registry.getBeanDefinitionCount() > candidateNames.length) {
+        //解析后所有的bean
+        String[] newCandidateNames = registry.getBeanDefinitionNames();
+        //解析前所有的bean
+        Set<String> oldCandidateNames = new HashSet<String>(Arrays.asList(candidateNames));
+        //已解析的bean
+        Set<String> alreadyParsedClasses = new HashSet<String>();
+        for (ConfigurationClass configurationClass : alreadyParsed) {
+          alreadyParsedClasses.add(configurationClass.getMetadata().getClassName());
+        }
+        //查找新的未解析的配置类
+        for (String candidateName : newCandidateNames) {
+          if (!oldCandidateNames.contains(candidateName)) {
+            BeanDefinition beanDef = registry.getBeanDefinition(candidateName);
+            if (ConfigurationClassUtils.checkConfigurationClassCandidate(beanDef, this.metadataReaderFactory) &&
+                !alreadyParsedClasses.contains(beanDef.getBeanClassName())) {
+              candidates.add(new BeanDefinitionHolder(beanDef, candidateName));
+            }
+          }
+        }
+        candidateNames = newCandidateNames;
+      }
+    }
+    while (!candidates.isEmpty());
+
+    //6. 注册ImportRegistry作为一个bean让实现ImportAware接口的Bean知道被那个配置类导入的
+    if (singletonRegistry != null) {
+      if (!singletonRegistry.containsSingleton(IMPORT_REGISTRY_BEAN_NAME)) {
+        singletonRegistry.registerSingleton(IMPORT_REGISTRY_BEAN_NAME, parser.getImportRegistry());
+      }
+    }
+
+    //7. 清理解析过程中使用的缓存, 因为解析只执行一次, 解析完清理, 释放占用内存
+    if (this.metadataReaderFactory instanceof CachingMetadataReaderFactory) {
+      ((CachingMetadataReaderFactory) this.metadataReaderFactory).clearCache();
+    }
+  }
+    
+    
+  private static class ImportAwareBeanPostProcessor extends InstantiationAwareBeanPostProcessorAdapter {
+    private final BeanFactory beanFactory;
+
+    public ImportAwareBeanPostProcessor(BeanFactory beanFactory) {
+      this.beanFactory = beanFactory;
+    }
+
+    @Override
+    public PropertyValues postProcessPropertyValues(PropertyValues pvs, PropertyDescriptor[] pds, Object bean, String beanName) {
+      /* 先在AutowiredAnnotationBeanPostProcessor的同名方法设置注入其他配置Bean依赖前设置工厂容器
+       * 所以这个Bean后置处理器一定要先比其他的Bean后置处理器执行, 这段话是原文的大意翻译
+      */
+      //这个Bean是在对配置类增强完毕后创建实例添加到容器, 此时容器存在很少内置的一些Bean实例, 容器中大多其他的Bean都只是定义声明还没有实例
+      //容器中先创建的后置处理器都是先被调用去后置处理其他Bean的实例创建过程, 所以这个Bean定然会比其他Bean后置处理器先执行后置处理
+      if (bean instanceof EnhancedConfiguration) {
+        ((EnhancedConfiguration) bean).setBeanFactory(this.beanFactory);
+      }
+      return pvs;
+    }
+
+    @Override
+    public Object postProcessBeforeInitialization(Object bean, String beanName)  {
+      //实现ImportAware接口的一定要是配置类, 否则没有用
+      if (bean instanceof ImportAware) {
+        ImportRegistry importRegistry = this.beanFactory.getBean(IMPORT_REGISTRY_BEAN_NAME, ImportRegistry.class);
+        //bean.getClass().getSuperclass() 因为经过ConfigurationClassEnhancer包装
+        AnnotationMetadata importingClass = importRegistry.getImportingClassFor(bean.getClass().getSuperclass().getName());
+        if (importingClass != null) {
+          ((ImportAware) bean).setImportMetadata(importingClass);
+        }
+      }
+      return bean;
+    }
+  }
+  
+  //省略其他源码......
+}
+```
