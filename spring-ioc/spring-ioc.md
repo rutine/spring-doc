@@ -11,7 +11,7 @@
 
 ## 容器
 
-##### 一、 容器概览
+#### 一、 容器概览
 
 以一张图来看看, **Spring IOC**容器包含哪些东西  
 ![Spring 容器](images/spring-ioc.png)
@@ -26,26 +26,26 @@
 
 * `DefaultListableBeanFacotry` 管理`Bean`实例获取、创建、初始化、依赖注入和缓存单例`Bean`, 是真正意义上的`Bean`实例容器.
 
-* `BeanDefinitionRegistryPostProcessor` **`Bean`定义声明后置处理器**, 是容器对外输出如何发现、读取、解析、创建**`Bean`定义声明**、注册**`Bean`定义声明**
+* `BeanDefinitionRegistryPostProcessor` **`Bean`定义注册器后置处理器**, 是容器对外输出如何发现、读取、解析、创建**`Bean`定义**并注册**`Bean`定义声明**
 
-* `BeanFactoryPostProcessor` **`Bean`工厂后置处理器**, 是容器对外输出能够对**`Bean`工厂**执行增强、配置, 如编码方式向容器添加`Bean`实例, 替换**`Bean`定义声明**元数据中的字符串占位符为具体值  
+* `BeanFactoryPostProcessor` **`Bean`工厂后置处理器**, 是容器对外输出能够对**`Bean`工厂**执行增强、配置, 如编码方式向容器添加`Bean`实例, 替换**`Bean`定义声明**元数据中的字符串占位符为具体值
 
-* `BeanPostProcessor` **`Bean`实例后置处理器**, 是容器对外输出预测类型、确定构造函数、对实例前/后置处理、属性值设置、初始化前/后置处理等控制创建`Bean`实例一系列过程, 这是容器对外提供参与Bean实例创建最详细的生命周期
+* `BeanPostProcessor` **`Bean`后置处理器**, 是容器对外输出预测类型、确定构造函数、对实例前/后置处理、属性值设置、初始化前/后置处理等控制创建`Bean`实例一系列过程, 这是容器对外输出参与`Bean`实例创建最详细的生命周期能力
 
 * `MessageSource` 国际化消息组件, 容器默认的组件实例是`DelegatingMessageSource`
 
 * `ApplicationEventMulticaster` 轻量级事件广播器, 是容器提供的事件监听机制, 在容器初始化完成后会广播一个`ContextRefreshedEvent`事件, 我们可以监听这个事件. 适合一些其他需要容器初始化完成后才开始执行的动作, 如**Spring**自带的定时任务, 就是监听到这个事件后触发定时任务初始化工作
 
-* `LifecycleProcessor` 容器生命周期处理器, 是容器初始化完成后, 可以自动启动实现了`Lifecycle`接口的扩展组件, 如`rabbitmq`客户端组件就是应用了这个机制. 当容器初始化完成后, 容器引导`rabbitmq`启动, `rabbitmq`客户端组件内部开始执行`rabbitmq`客户端连接到`rabbitmq`服务器, 创建监听器监听队列消息等一系列初始化工作. 
+* `LifecycleProcessor` `Bean`实例生命周期处理器, 是容器初始化完成, 所有`Bean`实例一切就绪后, 容器对外输出实现`Lifecycle`接口的扩展组件`Bean`执行自动启动, 如`rabbitmq`客户端组件就是应用了这个机制. 当容器初始化完成后, 容器引导`rabbitmq`启动, `rabbitmq`客户端组件内部开始执行`rabbitmq`客户端连接到`rabbitmq`服务器, 创建监听器监听队列消息等一系列初始化工作. 
 
 
 #### 二、 如何创建一个新容器
 
-**Spring**容器是设计为父子层级容器, 子容器可以继承公共父容器的**Bean**实例, 这对于某些场景需要多个不同隔离的子容器提供了支持. 比如在**Spring MVC**中, 展现层`Bean`位于一个子容器中, 而业务层和持久层的`Bean`位于父容器中. 这样, 展现层`Bean`就可以引用业务层和持久层的Bean, 而业务层和持久层的`Bean`则看不到展现层的`Bean`.
-创建**Spring**容器可以以XML文件声明式和注解编码两种方式, 或者混用两种方式.
-* XML声明式: `ClassPathXmlApplicationContext` `FileSystemXmlApplicationContext`
+**Spring**容器被设计为父子层级容器, 子容器可以继承公共父容器的**Bean**实例, 这对于某些场景需要多个不同隔离的子容器提供了支持. 比如在**Spring MVC**中, 展现层`Bean`位于一个子容器中, 而业务层和持久层的`Bean`位于父容器中. 这样, 展现层`Bean`就可以引用业务层和持久层的`Bean`, 而业务层和持久层的`Bean`则看不到展现层的`Bean`.
+创建**Spring**容器可以以XML文件声明式和注解编码两种方式, 或者混用两种方式. 针对不同方式, **Spring**提供不同的支持类:
+* XML声明方式: `ClassPathXmlApplicationContext` `FileSystemXmlApplicationContext`
 * 注解编码方式: `AnnotationConfigApplicationContext`
-这里提到的两种方式都是框架提供的最基本的两个创建容器的方式, 针对**Spring MVC**、**Spring Boot**都会有自己的实现类. 本文统一使用`AnnotationConfigApplicationContext`这种注解方式进行讲解.
+这里提到的两种方式的支持类是框架内部基本的两个创建容器的类, 针对**Spring MVC**、**Spring Boot**都会有自己的实现类. 本文统一使用`AnnotationConfigApplicationContext`这种注解方式进行讲解.
 
 首先介绍一下本文用到的maven项目结构, 如下
 >```
@@ -75,15 +75,13 @@
 1. 注解类为参数的构造器  
 * 注解类
 ```java
-
-//配置类主入口
+//该注解很重要
 @Configuration
 public class ContextConfig {
-  
+  //配置类主入口
 }
 ```
-`ContextConfig`注解类很简单, 里面什么也没有, 类应该是被`@Configuration`、`@Component`、`@Inject`注解所标记, 如果需要通过方法声明`Bean`定义, 
-应该在注解`@Configuration`的类里面写一个方法, 此方法必须存在返回值, 且返回类型是`Bean`的类型, 然后在方法上面添加注解`@Bean`.
+`ContextConfig`注解类很简单, 里面什么也没有, 类应该是被`@Configuration`、`@Component`、`@Inject`注解所标记. 如果需要在注解类声明`Bean`定义, 应该在`@Configuration`注解的类里面写一个方法, 此方法必须存在返回值, 且返回类型是`Bean`的类型, 并在方法上添加`@Bean`注解.
 
 * 注解类为参的构造器
 ```java
@@ -104,7 +102,7 @@ public class SpringContainer {
   }
 }
 ```
-包名为参创建容器, 在容器初始化过程中, 会扫描包名及子包名下所有注解`@Configuration`的类并注册为`Bean`定义, 且解读类中注解`@Bean`的方法并注册为`Bean`定义
+以包名为参创建容器, 在容器初始化过程中, 会扫描包名及子包名下所有`@Configuration`注解的类并注册为`Bean`定义, 且会解析注解类中`@Bean`注解的方法并注册为`Bean`定义
 
 3. 无参的构造器  
 ```java
@@ -118,32 +116,30 @@ public class SpringContainer {
   }
 }
 ```
-无参构造器方式创建一个完整的容器, 需要的代码也不多, 调用`register`方法注册一个注解类或者调用`scan`方法指定要扫描的包名, 然后调用`refresh`方法刷新容器, 
-刷新方法是必须的, 容器初始化大量相关的工作需要调用该方法.
+以无参构造器方式创建一个完整的容器, 需要的代码也不多, 调用`register`方法注册一个注解类或者调用`scan`方法指定要扫描的包名, 然后调用`refresh`方法刷新容器, 调用刷新方法是**必须的**, 容器初始化大量相关的工作需要调用该方法.
 
 
 #### 三、 容器启动流程
 
-通过前面的示例, 创建一个容器很简单, 仅两三行代码就完成了. 我们输入一个配置类或者包名, 最后容器输出事先定义的`Bean`实例(仅限单例会预先创建, 多例要在运行时动态创建), 容器里面到底发生了什么, 我们不知晓,
-一般来说也不需要关心, 容器自身保证输出的`Bean`实例及依赖关系的正确性. 让我们窥视下这个黑盒子做了哪些工作:  
+通过前面的示例, 创建一个容器很简单, 仅两三行代码就完成了. 我们输入一个配置类或者包名, 最后容器输出一系列事先定义的`Bean`实例(仅限单例会预先创建, 多例要在运行时动态创建), 容器里面到底发生了什么, 我们不知晓, 一般来说也不需要关心, 容器自身保证输出的`Bean`实例及依赖关系的正确性. 让我们窥视下这个黑盒子做了哪些工作:  
 ![Spring 容器启动流程](images/spring-ioc-sequence.png)
 
-1. 容器引擎实例由调用`AnnotationConfigApplicationContext`的构造函数创建
+1. 容器实例引擎由调用`AnnotationConfigApplicationContext`的构造函数创建
 2. 容器内部创建`DefaultListableBeanFactory` 默认的`Bean`工厂实例, `Bean`工厂实例管理着`Bean`实例对象的获取、类型加载、最优构造器/工厂方法选择、创建实例、属性依赖绑定、后置处理器调用(如返回AOP生成的代理对象, 动态修改属性依赖绑定)、初始化、初始化回调(如通知`aware`接口实现)并注册缓存单例`Bean`
-3. `Bean`定义读析器实例由容器调用`AnnotatedBeanDefinitionReader`的构造函数创建, 并接受`BeanDefinitionRegistry`类型的实例作为参数, 容器自身实现了该接口, 所以这里传入的是容器实例
-4. `Bean`定义读析器尝试从容器获取`Environment`环境变量实例, 如果容器不能获取环境变量, 则创建新的`StandardEnvironment`环境变量实例
-5. `Bean`定义读析器内部创建`ConditionEvaluator`状态求值器实例, 该实例用于计算读析器读取的`Bean`定义是否可被注册为`Bean`定义声明, 这项技术在**Spring Boot**中大量使用, 我们按需添加**jar**包依赖, **Spring Boot**自动发现并配置容器功能的原型就是引用这项技术, **Spring Boot**扩展并增强了这项技术的应用
-6. 设置`Bean`工厂的注解排序器为`AnnotationAwareOrderComparator`实例, 在同类`Bean`中, 排序器根据注解`@Order`或者实现`Ordered`接口唯一方法返回的整型值, 决定其排序, 整型值越小排序越靠前, 优先级越高. 如容器对多个`BeanPostProcessor`实现类执行后置处理时, 根据其排序进行顺序后置处理
-7. 设置`Bean`工厂的自动绑定备选项选择器为`ContextAnnotationAutowireCandidateResolver`实例, 对于一个`Bean`有资格被绑定到依赖属性, 我们称这样的`Bean`为"种子`Bean`", 而最终能够被选中并绑定到属性依赖的`Bean`称之为"资格`Bean`", 在实际场景中, 我们可能会对某些`Bean`进行代理增强, 工厂在查找属性依赖注入的时候希望注入的是经过增强后的代理实例而不是原始`Bean`实例. 容器的做法就是通过一个标志位来区分是否可作为属性依赖注入的"种子`Bean`"
+3. `Bean`定义读析器实例由容器调用`AnnotatedBeanDefinitionReader`的构造函数创建, 并接受`BeanDefinitionRegistry`类型的`Bean`定义注册器实例作为参数, 容器自身实现了该接口, 所以这里传入的是容器实例
+4. `Bean`定义读析器尝试从容器获取`Environment`环境变量实例, 如果容器不能获取到环境变量实例, 则会创建新的`StandardEnvironment`环境变量实例
+5. `Bean`定义读析器内部创建`ConditionEvaluator`状态求值器实例, 该实例用于计算读析器判断一个`Bean`定义声明是否可被注册, 这项技术在**Spring Boot**中大量使用, 我们按需添加**jar**包依赖, **Spring Boot**自动发现并配置容器功能的原型就是引用这项技术, **Spring Boot**扩展并增强了这项技术的应用
+6. 设置`Bean`工厂的注解排序器为`AnnotationAwareOrderComparator`实例, 在同类`Bean`中, 排序器根据注解`@Order`属性值或者实现`Ordered`接口唯一方法返回值, 决定其排序位置, 整型值越小排序越靠前, 优先级越高. 如容器对多个`BeanPostProcessor`实现类执行后置处理时, 根据其排序进行顺序后置处理
+7. 设置`Bean`工厂的自动绑定备选项选择器为`ContextAnnotationAutowireCandidateResolver`实例, 对于一个有资格被绑定到依赖属性的`Bean`, 称这样的`Bean`为"种子`Bean`", 而最终能够被选中并绑定到属性依赖的`Bean`称之为"资格`Bean`", 在实际场景中, 我们可能会对某些`Bean`进行代理增强, `Bean`工厂在查找属性依赖注入的时候希望注入的是经过增强后的代理实例而不是原始`Bean`实例. 容器的做法就是通过一个标志位来区分是否可作为属性依赖注入的"种子`Bean`"
 8. 注册配置类后置处理器`ConfigurationClassPostProcessor`的`Bean`定义, 因为是`Bean`定义声明, 只有在容器刷新时, 才会创建配置类后置处理器实例对象. 由于该`Bean`定义声明实现了`BeanDefinitionRegistryPostProcessor`和`PriorityOrdered`接口, 因此在所有`Bean`定义声明中最优先被创建实例对象, 在容器启动中, 该`Bean`实例对象解析`@Configuration`注解的`class`文件(称为: 配置类). 配置类是编码方式声明其他`Bean`定义的入口
-9. 包`Bean`定义扫描器实例由容器调用`ClassPathBeanDefinitionScanner`的构造函数创建, 包`Bean`定义扫描器根据指定的包扫描该包下被`@Component`或元注解是`@Component`所注解的`class`, 并解析注册为`Bean`定义声明, 元注解是`@Component`的注解有: `@Service` `@Repository` `@Controller` `@Configuration`. 同时支持**java**平台自身的`javax.annotation.ManagedBean` `javax.inject.Named`. 以及可以向包`Bean`定义扫描器实例注册我们的"自定义注解"
-10. 最后一步是刷新容器, 刷新容器方法在容器引擎的父类`AbstractApplicationContext`中, 对子类抽象了刷新容器绝大多数细节, 容器引擎初始化正式的由这里开始并一直到准备完毕
+9. 包路径`Bean`定义扫描器实例由容器调用`ClassPathBeanDefinitionScanner`的构造函数创建, 包路径`Bean`定义扫描器根据指定的包名扫描该包下被`@Component`或元注解是`@Component`所注解的`class`, 并解析注册为`Bean`定义声明, 元注解是`@Component`的注解有: `@Service` `@Repository` `@Controller` `@Configuration`. 同时支持**java**平台自身的`javax.annotation.ManagedBean` `javax.inject.Named`. 以及可以向包路径`Bean`定义扫描器注册我们的"自定义注解"
+10. 最后一步是刷新容器实例引擎, 刷新容器的方法在容器的父类`AbstractApplicationContext`中, 该方法抽象了刷新容器绝大多数细节, 容器初始化大量工作正式由这里开始并一直到准备就绪完毕
 
-总结一下, 前面介绍了在容器启动流程中涉及到几个比较重要的类, 每个类承担着不同却异常重要的角色, 每个类都是独立的但又相互联系, 若即若离组成了一个设计良好、完整的容器所必须的功能. 这些类实例都是为容器开始初始化做足前期准备, 容器正式启动并完成初始化是调用`refresh`方法.
+总结一下, 前面介绍了在容器实例引擎启动流程中涉及到几个比较重要的类, 每个类承担着不同却异常重要的角色, 每个类都是独立的但又相互联系, 若即若离组成了一个设计良好、完整的容器所必须的功能. 这些类实例都是为容器开始初始化做足前期准备, 容器正式启动并完成初始化是调用`refresh`方法.
 
 ## 深入源码与原理
 
-从本小节开始, 将会以`AnnotationConfigApplicationContext`为起点深入'每行'代码的讲解, 应该说不是真正的做到每一行代码, 而是把绝大多数、有意义、影响到全文理解的都会进行讲解分析. 后面会看到大量的`copy`源码. 在这里, 而没有建议读者直接回到专业的编辑工具去查阅源码. 目的就是为了减少来回切换, 影响阅读连贯性, 增强可读性, 更好的理解和更容易的掌握. 在源码讲解过程中, 对有些代码类会增加一些场景使用代码来进一步说明. 理解是缘由, 场景实战才是目的. 
+从本小节开始, 将会以`AnnotationConfigApplicationContext`为起点深入每行代码的讲解, 应该说不是真正的做到每一行代码, 而是把绝大多数、有意义、影响到全文理解的都会进行讲解分析. 后面会看到大量的`copy`源码. 在这里, 而没有建议读者直接回到专业的编辑工具去查阅源码. 目的就是为了减少来回切换, 影响阅读连贯性, 增强可读性, 更好的理解和更容易的掌握. 在源码讲解过程中, 对有些代码类会增加一些场景使用代码来进一步说明. 理解是缘由, 场景实战才是目的. 
 
 `AnnotationConfigApplicationContext` 无参构造器源码
 ```java
@@ -174,13 +170,13 @@ public class AnnotatedBeanDefinitionReader {
   //省略其他源码....
 }
 ```
-最终是调用两个参数的构造器, 第一个参数是管理`Bean`定义的注册器对象, 第二个是环境对象, 内部创建一个状态求值器对象, 调用工具类向容器注册一些默认的处理器
+最终是调用两个参数的构造器, 第一个参数是`Bean`定义注册器, 第二个是环境实例, 内部创建一个状态求值器实例, 最后调用工具类注册一些默认的处理器`Bean`定义
 
 `AnnotationConfigUtils.registerAnnotationConfigProcessors`方法源码:
 ```java
 public class AnnotationConfigUtils {
   public static Set<BeanDefinitionHolder> registerAnnotationConfigProcessors(BeanDefinitionRegistry registry, Object source) {
-    // 1. 尝试解包Bean工厂对象, 设置依赖排序器和自动绑定备选项选择器
+    // 1. 尝试解包Bean工厂实例, 设置依赖排序器和自动绑定备选项选择器
     DefaultListableBeanFactory beanFactory = unwrapDefaultListableBeanFactory(registry);
     if (beanFactory != null) {
       if (!(beanFactory.getDependencyComparator() instanceof AnnotationAwareOrderComparator)) {
@@ -258,10 +254,10 @@ public class AnnotationConfigUtils {
 }
 ```
 
-该工具方法完成一些重要的处理器注册, 对于在这里注册`Bean`实例和注册`Bean`定义可以从三个阶段理解:
-1. 第一阶段, 先解包获取默认的`Bean`工厂对象, 然后设置依赖排序器和依赖选择器, 这都是直接实例对象, 目的配置好工厂环境
-2. 第二阶段, 注册一个配置类后处理器, 该处理器用于循环查找工厂已注册的`Bean`定义所对应的类是否含有新的`Bean`定义, 如有则注册为新的`Bean`定义声明. 这个阶段完成查找所有`Bean`定义并注册登记
-3. 第三阶段, 创建`Bean`定义声明对应的实例对象及初始化, 除了配置类处理器, 后面注册的其他注解处理器, 在创建实例和初始化对象过程被触发调用, 解决依赖属性、校验依赖是否满足、包装方法(事件监听器)
+该工具方法完成一些重要的处理器`Bean`定义注册, 对于在这里注册的`Bean`实例和`Bean`定义可以从三种类型理解:
+1. 第一是准备工厂环境, 先解包获取默认的`Bean`工厂实例, 然后设置依赖排序器和依赖选择器, 这都是直接实例对象, 目的配置好工厂环境
+2. 第二是参与容器生命周期的处理器`Bean`定义, 该类型的`Bean`定义实例是由容器先于`Bean`定义实例创建, 而配置类后处理器属于该类型. 该处理器主要用于加载已注册`Bean`定义的目标类, 解析`Bean`定义目标类是否存在新的`Bean`定义, 如有则注册为新的`Bean`定义声明. 这个阶段完成根据已有的`Bean`定义发现并注册新的`Bean`定义
+3. 第三是参与`Bean`实例创建生命周期的处理器`Bean`定义, 该类型的处理器`Bean`定义实例先于其他`Bean`定义实例创建, 但晚于容器生命周期处理器类型实例. 在创建`Bean`实例和初始化过程被触发调用, 解决依赖属性、校验依赖是否满足、包装方法(事件监听器)
 
 
 ## `AnnotationAwareOrderComparator` 源码分析
@@ -2040,12 +2036,12 @@ class ConfigurationClassEnhancer {
 
 #### 八、 `ConfigurationClassPostProcessor` 配置类后置处理器
 
-调用容器`registry`或者`scan`包名扫描方法创建并注册到容器的`Bean`定义是最原始的`Bean`定义. 可能这些`Bean`定义中有些是配置类型的`Bean`定义, 我们需要从配置类型的`Bean`定义中发现、解析、创建并注册新的`Bean`定义. 配置类后置处理器就是专门用来处理配置模型声明的`Bean`定义, 并从中解析找到新的`Bean`定义及注册到容器. 这是一个自动化的过程, 也是容器实例化过程中的第一步要做的主要工作: 发现并创建`Bean`定义. 容器的`Bean`实例都是根据事先声明好的`Bean`定义来创建的, 所以创建注册`Bean`定义工作很重要. 配置类后置处理器处在容器生命周期的初始阶段, 在容器初始化时仅有的一次执行机会. 所以在这个阶段用它来处理`Bean`定义发现、解析、创建工作最好不过了.
+调用容器`registry`或者`scan`包名扫描方法创建并注册到容器的`Bean`定义是最原始的`Bean`定义. 可能这些`Bean`定义中有些是配置类型的`Bean`定义, 我们需要从配置类型的`Bean`定义中发现、解析、创建并注册新的`Bean`定义. 配置类后置处理器就是专门用来处理配置模型声明的`Bean`定义, 并从中解析找到新的`Bean`定义及注册到`Bean`定义注册器. 这是一个自动化的过程, 也是容器实例化过程中的第一步要做的主要工作: 发现并创建`Bean`定义. 容器的`Bean`实例都是根据事先声明好的`Bean`定义来创建的, 所以创建注册`Bean`定义工作很重要. 配置类后置处理器处在容器生命周期的初始阶段, 在容器初始化时仅有的一次执行机会. 所以在这个阶段用它来处理`Bean`定义发现、解析、创建工作最好不过了.
 
 配置类后置处理器继承关系:
 ![Spring 配置类后置处理器继承关系](images/spring-config-post-processor-class.png)
 
-实现`BeanDefinitionRegistryPostProcessor`接口, 该接口继承了`BeanFactoryPostProcessor`接口, 所以说配置类后置处理器是在容器声明周期的开始阶段. 实现了`PriorityOrdered`优先级接口, 所以会被容器优先调用. 实现了几个容器回调感知接口.
+实现`BeanDefinitionRegistryPostProcessor`接口, 该接口继承了`BeanFactoryPostProcessor`接口, 所以说配置类后置处理器是在容器声明周期的开始阶段. 实现了`PriorityOrdered`优先级接口, 所以会被容器优先调用. 及实现了几个容器回调感知接口.
 
 配置类后置处理器核心实现细节流程图：
 ![Spring 配置类后置处理器实现流程图](images/spring-config-post-processor-flow.png)
