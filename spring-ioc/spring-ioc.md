@@ -1,17 +1,20 @@
 # Spring 高级容器原理 - 深入源码
 
 
+
 ## 前述
 
-在**java**技术栈中, 大多**java**开发者、公司都会用到**Spring**提供的技术能力. **Spring**官方开发了很多的项目, 如**Spring Framework**、**Spring Boot**、**Spring Cloud**、**Spring Session**.
+在**java**技术栈中, 大多**java**开发者、公司都会用到**Spring**提供的技术能力. **Spring**官方开发了很多的项目, 如**Spring Framework**、**Spring Boot**、**Spring Cloud**.
 其中**IOC**容器是**Spring**的核心技术支持, **Spring**内部绝大多数项目都依赖该项技术. 在我参与开发的很多项目中, 几乎都离不开**Spring IOC**容器这一基础技术. 使用**Spring IOC**容器中, 在所难免会遇到一些疑问, 时常会出现抛出找不到属性依赖的对象异常, 刚开始遇到这样问题很多时候都是在网上搜索查找解决方案. 然而, 查找有效信息是件很费经的事, 且经常会遇到重复的问题, 又因过分依赖网上搜索引擎、对框架本身深不可测, 且对问题的解决方法大多是拿来主义而没有形成固有经验, 如是重复这样的过程, 就会导致为了解决一个问题花费太多的搜索时间. 这也是我理解的新手和经验老手之间的距离. 经验老手可以在遇到问题时快速的定位问题并找到解决方法, 而新手对于一个很浅显的异常都有可能不知所措, 不断网上搜索, 在技术群问.
 
-俗话说, "磨刀不误砍柴工", 对一项技术工具了解越多, 掌握的越深, 在项目开发中越得心应手, 遇到问题总会快速、有效的定位并解决. 本文从**Spring IOC**容器为入口, 深入源码原理, 帮助你在遇到**Spring IOC**异常如何更快定位问题并解决它, 挖掘在项目中如何更好的应用. 掌握**Spring IOC**原理, 对理解并应用其他相关的支持组件都有很大的帮助, 所以建议读者深刻理解并掌握**Spring IOC**原理.
+俗话说, "磨刀不误砍柴工", 对一项技术工具了解越多, 掌握的越深, 在项目开发中越得心应手, 遇到问题总会快速、有效的定位并解决. 本文从**Spring IOC**容器为入口, 深入源码原理, 帮助各位在遇到**Spring IOC**的各种问题时如何快速定位原因并解决它, 挖掘在项目中如何更好的应用. 掌握**Spring IOC**原理, 对理解并应用其他相关的支持组件都有很大的帮助, 所以建议读者深刻理解并掌握**Spring IOC**原理.
+
 
 
 ## 容器
 
-#### 一、 容器概览
+
+### 一、 容器概览
 
 以一张图来看看, **Spring IOC**容器包含哪些东西  
 ![Spring 容器](images/spring-ioc.png)
@@ -39,15 +42,15 @@
 * `LifecycleProcessor` `Bean`实例生命周期处理器, 是容器初始化完成, 所有`Bean`实例一切就绪后, 容器对外输出实现`Lifecycle`接口的扩展组件`Bean`执行自动启动, 如`rabbitmq`客户端组件就是应用了这个机制. 当容器初始化完成后, 容器引导`rabbitmq`启动, `rabbitmq`客户端组件内部开始执行`rabbitmq`客户端连接到`rabbitmq`服务器, 创建监听器监听队列消息等一系列初始化工作. 
 
 
-#### 二、 如何创建一个新容器
+### 二、 如何创建一个新容器
 
 **Spring**容器被设计为父子层级容器, 子容器可以继承公共父容器的**Bean**实例, 这对于某些场景需要多个不同隔离的子容器提供了支持. 比如在**Spring MVC**中, 展现层`Bean`位于一个子容器中, 而业务层和持久层的`Bean`位于父容器中. 这样, 展现层`Bean`就可以引用业务层和持久层的`Bean`, 而业务层和持久层的`Bean`则看不到展现层的`Bean`.
-创建**Spring**容器可以以XML文件声明式和注解编码两种方式, 或者混用两种方式. 针对不同方式, **Spring**提供不同的支持类:
+创建**Spring**容器可以以XML文件声明式和注解编码两种方式, 或者混用两种方式. 针对不同方式的`Bean`定义声明, **Spring**提供不同的支持类:
 * XML声明方式: `ClassPathXmlApplicationContext` `FileSystemXmlApplicationContext`
 * 注解编码方式: `AnnotationConfigApplicationContext`
-这里提到的两种方式的支持类是框架内部基本的两个创建容器的类, 针对**Spring MVC**、**Spring Boot**都会有自己的实现类. 本文统一使用`AnnotationConfigApplicationContext`这种注解方式进行讲解.
+这里提到的两种方式的支持类是框架内基本的两个创建容器的类, 针对**Spring MVC**、**Spring Boot**都会有自己的实现类. 本文将以`AnnotationConfigApplicationContext`这种注解方式为例展开源码深入的讲解.
 
-首先介绍一下本文用到的maven项目结构, 如下
+首先介绍一下本文用以配合源码理解的演示项目的maven结构:
 >```
 >troubleshoot
 >  src
@@ -70,10 +73,10 @@
 这是一个标准的**maven**项目结构, **java**目录都是存放**java**包、**java**文件的根目录, **resources**目录存放应用、日志、国际化消息及其他配置相关的配置文件.
 
 
-注解方式创建容器的几种实例
+#### 注解方式创建容器的几种示例
 
 1. 注解类为参数的构造器  
-* 注解类
+* 注解类代码
 ```java
 //该注解很重要
 @Configuration
@@ -93,7 +96,7 @@ public class SpringContainer {
 }
 ```
 
-2. 包名为参数的构造器  
+2. 包名为参数的构造器代码
 ```java
 public class SpringContainer {
   public static void main(String[] args) {
@@ -102,7 +105,7 @@ public class SpringContainer {
   }
 }
 ```
-以包名为参创建容器, 在容器初始化过程中, 会扫描包名及子包名下所有`@Configuration`注解的类并注册为`Bean`定义, 且会解析注解类中`@Bean`注解的方法并注册为`Bean`定义
+以包名为参创建容器, 在容器初始化过程中, 会扫描包名及子包名下所有`@Configuration`注解的类并注册为`Bean`定义, 且会解析注解类中`@Bean`注解的方法并注册为新的`Bean`定义
 
 3. 无参的构造器  
 ```java
@@ -119,7 +122,7 @@ public class SpringContainer {
 以无参构造器方式创建一个完整的容器, 需要的代码也不多, 调用`register`方法注册一个注解类或者调用`scan`方法指定要扫描的包名, 然后调用`refresh`方法刷新容器, 调用刷新方法是**必须的**, 容器初始化大量相关的工作需要调用该方法.
 
 
-#### 三、 容器启动流程
+### 三、 容器启动流程
 
 通过前面的示例, 创建一个容器很简单, 仅两三行代码就完成了. 我们输入一个配置类或者包名, 最后容器输出一系列事先定义的`Bean`实例(仅限单例会预先创建, 多例要在运行时动态创建), 容器里面到底发生了什么, 我们不知晓, 一般来说也不需要关心, 容器自身保证输出的`Bean`实例及依赖关系的正确性. 让我们窥视下这个黑盒子做了哪些工作:  
 ![Spring 容器启动流程](images/spring-ioc-sequence.png)
@@ -136,6 +139,8 @@ public class SpringContainer {
 10. 最后一步是刷新容器实例引擎, 刷新容器的方法在容器的父类`AbstractApplicationContext`中, 该方法抽象了刷新容器绝大多数细节, 容器初始化大量工作正式由这里开始并一直到准备就绪完毕
 
 总结一下, 前面介绍了在容器实例引擎启动流程中涉及到几个比较重要的类, 每个类承担着不同却异常重要的角色, 每个类都是独立的但又相互联系, 若即若离组成了一个设计良好、完整的容器所必须的功能. 这些类实例都是为容器开始初始化做足前期准备, 容器正式启动并完成初始化是调用`refresh`方法.
+
+
 
 ## 深入源码与原理
 
@@ -260,7 +265,7 @@ public class AnnotationConfigUtils {
 3. 第三是参与`Bean`实例创建生命周期的处理器`Bean`定义, 该类型的处理器`Bean`定义实例先于其他`Bean`定义实例创建, 但晚于容器生命周期处理器类型实例. 在创建`Bean`实例和初始化过程被触发调用, 解决依赖属性、校验依赖是否满足、包装方法(事件监听器)
 
 
-## `AnnotationAwareOrderComparator` 源码分析
+### 一、 `AnnotationAwareOrderComparator` 源码分析
 
 该类在容器中有两大用处, 第一用处在容器内部调用PostProcessor处理器时, 优先触发调用实现了接口`Ordered`或注解`@Order`的处理器, 值越小越优先被触发. 第二用处在属性依赖选择时, 当属性依赖只需一个种子`Bean`, 而容器发现存在多个种子`Bean`, 根据`@Priority`注解, 值小者被选择性更高, 存在优先级一样等不确定时容器会抛出异常
 ```java
@@ -328,7 +333,7 @@ public class AnnotationAwareOrderComparator {
 `FirstAutowire`优先级是1 所以在单属性依赖时被优先选择注入. 在数组属性依赖的注入值可以看到, 因为`FirstAutowire`的排序号3 所以在数组的排序是2
 
 
-## `ContextAnnotationAutowireCandidateResolver` 源码分析
+### 二、 `ContextAnnotationAutowireCandidateResolver` 源码分析
 
 自动绑定备选项选择器用于判断一个`Bean`对象是否可作为"种子`Bean`"被绑定到属性依赖, 在实际应用中, 当存在多个"种子`Bean`"时, 我们可以通过`@Qualifier`设置一个匹配值来过滤, `ContextAnnotationAutowireCandidateResolver` 类通过继承关系来区分不同基础类的功能和职责:  
 ![Spring 自动绑定备选项选择器](images/spring-autowire-candidate-resolver-class.png)
@@ -348,7 +353,8 @@ public class AnnotationAwareOrderComparator {
 
 知识前知道: `BeanDefinition`类, 是对`XML`或者注解`@Bean`方式声明`Bean`定义的元数据表达, 其中最主要的元数据是`beanClassName`, `factoryBeanName`与`factoryMethodName`, 在配置元数据定义时, 如果设置`beanClassName`, 说明`Bean`实例的类型就是名字所指的类型, 如果设置`factoryBeanName`和`factoryMethodName`, `Bean`实例是由`factoryBeanName`所指的工厂`Bean`来创建, 创建的方法是`factoryMethodName`指定的方法名, `Bean`的类型是方法返回类型能够表达的类型.
 
-#### 一、 父类`GenericTypeAwareAutowireCandidateResolver`自动绑定备选项泛型类型选择器
+
+#### 父类`GenericTypeAwareAutowireCandidateResolver`自动绑定备选项泛型类型选择器
 
 ```java
 public class GenericTypeAwareAutowireCandidateResolver {
@@ -479,7 +485,8 @@ public class GenericTypeAwareAutowireCandidateResolver {
 
 在自动绑定备选项泛型类型选择器源码中, 说明了属性依赖怎么检查一个种子`Bean`是否符合匹配属性依赖类型关系. 可能会产生这样的情况, 找到多个符合属性依赖的种子`Bean`. 如果属性依赖是数组、集合还好, 假如是某个具体类型属性实例呢, 这在应用中很常见的一种属性依赖配置. 面对这种情况该如何如选择出或标识一个更符合属性依赖的种子`Bean`, **Spring**提供了解决方案, 就是通过注解`@Qualifier`, 指定该注解的属性值, 需要属性依赖和种子`Bean`两边都配置这个注解并设置同样的注解属性值, 以这种注解限定符方式进一步匹配得到最终的资格`Bean`
 
-#### 二、 `QualifierAnnotationAutowireCandidateResolver`自动绑定备选项限定符注解选择器
+
+#### `QualifierAnnotationAutowireCandidateResolver`自动绑定备选项限定符注解选择器
 
 ```java
 public class QualifierAnnotationAutowireCandidateResolver {
@@ -668,7 +675,8 @@ public class QualifierAnnotationAutowireCandidateResolver {
 
 `@Value`注解的处理逻辑比较简单, 查找属性依赖的`@Value`注解, 提取`@Value`注解`value`属性的值并返回. 然后由容器处理这个`value`的属性值, 如"${}"通过查找配置属性文件的属性值, 如"#{}"通过表达式求值获取, 然后把最终求得的值注入到属性依赖
 
-#### 三、 `ContextAnnotationAutowireCandidateResolver`自动绑定备选项配置注解选择器
+
+#### `ContextAnnotationAutowireCandidateResolver`自动绑定备选项配置注解选择器
 
 ```java
 public class ContextAnnotationAutowireCandidateResolver {
@@ -752,11 +760,12 @@ public class ContextAnnotationAutowireCandidateResolver {
 运行效果告诉我们, 虽然每次调用属性依赖`prototypeBean`的`getThis()`方法, 但是每次返回的`this`都是不同的对象, 如果把`@Lazy`注解注释掉的话, 每次返回的`this`就会同一个对象了. 至此, 让我们学到了在实际应用中如何解决单例依赖多例的问题. 需要指出的是, 其实还有别的方法也可以解决单例依赖多例的问题, 这里只是说出了一种方式而已.
 
 
-## `ConfigurationClassPostProcessor` 源码分析
+### 三、 `ConfigurationClassPostProcessor` 源码分析
 
-被`@Configuration` 注解的类叫做配置类, 类似XML文件那样配置`Bean`定义声明, 只不过这种是在`class`类配合`@Configuration`注解表示当前类是声明`Bean`定义的配置类. `ConfigurationClassPostProcessor`叫做配置类后置处理器, 用来解析、读取、查找和注册配置类中的`Bean`定义声明. 在开始讲解配置类后置处理前, 先介绍一些重要的基础组件的源码和原理.
+被`@Configuration` 注解的类叫做配置类, 类似XML文件那样配置`Bean`定义声明, 只不过这种是在`class`类配合`@Configuration`注解表示当前类是声明`Bean`定义的配置类. `ConfigurationClassPostProcessor`叫做配置类后置处理器, 用来解析、读取、查找和注册配置类中的`Bean`定义声明. 在开始进入讲"解配置类后置处理器"前, 先从一些重要基础组件的源码和原理作为介绍入口, 逐步深入, 最后重点分析: 配置类后置处理器.
 
-#### 一、 `MetadataReaderFactory` 元数据读取器工厂
+
+#### `MetadataReaderFactory` 元数据读取器工厂
 
 元数据读取器工厂根据给定的类名, 通过资源加载器`ResourceLoader`载入数据流, 创建一个元数据读取器`MetadataReader`实例, 元数据读取器是一种使用`ASM`字节码读取技术的框架(**Spring**已内部集成), 这里不对字节码读取技术做讲解. `MetadataReaderFactory` 接口定义：
 ```java
@@ -784,7 +793,8 @@ public interface MetadataReaderFactory {
 
 看到这里, 复杂吧、严格吧? 我们还只是希望得到类在内存中结构表示的元数据信息, 通过对元数据的识别和处理, 最后需要`Bean`对象时才通知JVM去加载类并创建类的实例对象. 要是容器不需要这个类, 就没必要加载到虚拟机. 所以这里通过字节码技术直接装载到内存进行各种操作判断更加方便和简单
 
-#### 二、 `ImportSelector` 导入选择器
+
+#### `ImportSelector` 导入选择器
 
 导入选择器根据策略选择性引入其他的类, 我们称导入其他类的类为"主动类", 被导入的类称为"被动类". 导入选择器通过读取一个或多个"主动类"上的注解属性值, 根据属性值选择性返回"被动类"的名字, `ImportSelector`接口定义：
 ```java
@@ -818,7 +828,8 @@ public class ContextConfig {
 ```
 至此我们已经知道了怎么编写一个`ImportSelector`导入选择器接口实现的应用实例. 先创建接口实现类, 接着自定义注解并导入该接口实现类, 然后在配置类主入口使用自定义的注解并设置一个选项值表明要导入哪个"被动类"
 
-#### 三、 `ImportBeanDefinitionRegistrar` 导入`Bean`定义声明注册员
+
+#### `ImportBeanDefinitionRegistrar` 导入`Bean`定义声明注册员
 
 导入`Bean`定义声明注册员, 与配置类使用`@Bean` 注解在方法级别声明`Bean`定义相比, 该接口提供了一种另外的更加原始的方式声明`Bean`定义. 我们可以在配置类或者`ImportSelector`类上使用`@Import`注解导入注册员类, 也可以通过`ImportSelector`类的实现方法上返回注册员类名称. 接口定义:
 ```java
@@ -835,7 +846,8 @@ public interface ImportBeanDefinitionRegistrar {
 原始方式声明注册`Bean`定义演示代码:
 > ![Spring 导入Bean定义声明注册员代码](images/spring-bean-import-bean-definition-registrar-code.png)
 
-#### 四、 `ConfigurationClass` 配置类模型
+
+#### `ConfigurationClass` 配置类模型
 
 配置类模型是对那些被`@Configuration` 注解的类的结构描述, 称为配置类, 配置类模型封装了被`@Configuration`注解的类的所有信息. 相对于XML文件方式声明`Bean`定义, 配置类模型是一种使用编码方式声明`Bean`定义. 真实的、完整的配置类模型示例代码:
 > ![Spring 配置类示例代码](images/spring-config-class-code.png)
@@ -901,7 +913,8 @@ final class ConfigurationClass {
 ```
 通过源码可以看出, 在配置类模型上的`@ImportResource`、`@Import`, `@Bean`注解被解析并得到配置类模型内部结构定义的几个属性值. 除了验证方法`validate`需要注意外, 其他都是简单的`setter`、`getter`方法, 所以这里没有更多的展示这些代码. 接下来看看如何解析配置类模型对象的源码
 
-#### 五、 `ConfigurationClassParser` 配置类解析器
+
+#### `ConfigurationClassParser` 配置类解析器
 
 配置类解析器使用字节码读取技术, 读取类文件到内存构造元数据结构, 解析元数据结构并生成一组配置类对象. 避免即时加载和反射操作带来的性能开销. 配置类解析器源码比较多, 将分为三个部分来讲解: 内部类、配置类 属性和方法
 
@@ -1492,7 +1505,8 @@ class ConfigurationClassParser {
    * 获取父类, 进入步骤**2**递归处理
 4. 记录配置类对象供后续"配置类`Bean`定义读取器"使用
 
-#### 六、 `ConfigurationClassBeanDefinitionReader` 配置类`Bean`定义读取器
+
+#### `ConfigurationClassBeanDefinitionReader` 配置类`Bean`定义读取器
 
 `Bean`定义读取器接受读取解析器解析得出的`Bean`定义并登记注册到容器的一个组件. 读取器主要注册三个来源的`Bean`定义: 配置类`Bean`定义(`ConfigurationClass`)、XML`Bean`定义(`BeanDefinitionReader`)、`Bean`定义登记员(`ImportBeanDefinitionRegistrar`). 相对于解析配置类阶段, 因为现在是注册`Bean`定义阶段, 读取器通过`TrackedConditionEvaluator`状态跟踪求值器过滤一个`Bean`定义是否忽略被注册, 该类的处理过程是判断当前的配置类定义是否应被忽略, 若否, 继续判断是否是被引入, 如果是被引入的则判断主动引入是否被忽略的, 若主动引入被忽略, 那么被引入也应被忽略注册到容器. XML方式声明注册到容器的`Bean`定义类型是`RootBeanDefinition`, 通过配置类代码注解方式声明注册到容器的`Bean`定义类型是`ConfigurationClassBeanDefinition`.
 
@@ -1681,7 +1695,8 @@ class ConfigurationClassBeanDefinitionReader {
 ```
 详细分析了加载注册配置类模型的一组`Bean`定义源码, 及根据方法元数据如何创建一个`Bean`定义并注册到容器的每一步细节. 在这里省略对通过XML方式和登记员方法注册`Bean`定义的方法分析. 代码方式配置声明`Bean`定义是主流, 所以详细分析这个是必要的, 对于XML方式, 有兴趣的可以自行查阅相关源码. 对于登记员方式, 其实一开始在讲解配置类后置处理器时就提到分析过.
 
-#### 七、 `ConfigurationClassEnhancer` 配置类增强
+
+#### `ConfigurationClassEnhancer` 配置类增强
 
 配置类增强使用**CGLIB**提供的字节码生成技术, **Spring**框架已把相关的代码纳入到自己的核心包里, 在实际应用中就无需单独添加**CGLIB**包的依赖. 配置类增强将我们定义的配置类模型重新生成新的子类并增强：增加公有的`$$beanFactory`属性, 引用`BeanFactory`; 增加实现`BeanFactoryAware`接口; 增加`Bean`容器感知拦截器和`@Bean`方法拦截器. 
 
@@ -2034,7 +2049,8 @@ class ConfigurationClassEnhancer {
 ```
 通过对配置类增强源码分析, 重点在于对配置类`@Bean`注解方法的过滤拦截. 容器按两种`Bean`类型处理, `FactoryBean`和非`FactoryBean`. 对`@Bean`注解方法也分为两种调用, 一种是由容器触发的容器调用, 一种是在一个`@Bean`注解方法调用另一个`@Bean`注解方法的用户调用. 对于容器调用, 不管`FactoryBean`和非`FactoryBean`都走`@Bean`注解方法内部代码逻辑. 对于用户调用, 得区分`FactoryBean`和非`FactoryBean`类型两种情况. 如果是`FactoryBean`, 则进行代理或者字节码增强, 拦截`getObject()`方法调用并从容器获取对应的`Bean`实例, 这样可以保证得到正确的范围实例对象. 如果是非`FactoryBean`, 那么直接从容器获取对应的`Bean`实例. 通过对`@Bean`注解方法的过滤拦截, 保证注解方法代码只执行一次, 之后获取实例都是从容器获取(非多例模型). 如果是多例模型, 还是要走`@Bean`注解方法调用, 并触发注解方法过滤拦截, 因为容器不存在实例, 继而走容器调用逻辑.
 
-#### 八、 `ConfigurationClassPostProcessor` 配置类后置处理器
+
+#### 最后`ConfigurationClassPostProcessor` 配置类后置处理器
 
 调用容器`registry`或者`scan`包名扫描方法创建并注册到容器的`Bean`定义是最原始的`Bean`定义. 可能这些`Bean`定义中有些是配置类型的`Bean`定义, 我们需要从配置类型的`Bean`定义中发现、解析、创建并注册新的`Bean`定义. 配置类后置处理器就是专门用来处理配置模型声明的`Bean`定义, 并从中解析找到新的`Bean`定义及注册到`Bean`定义注册器. 这是一个自动化的过程, 也是容器实例化过程中的第一步要做的主要工作: 发现并创建`Bean`定义. 容器的`Bean`实例都是根据事先声明好的`Bean`定义来创建的, 所以创建注册`Bean`定义工作很重要. 配置类后置处理器处在容器生命周期的初始阶段, 在容器初始化时仅有的一次执行机会. 所以在这个阶段用它来处理`Bean`定义发现、解析、创建工作最好不过了.
 
@@ -2238,9 +2254,352 @@ class ConfigurationClassPostProcessor {
 }
 ```
 
-回顾一下容器概览说到的三种类型后置处理器: `Bean`定义注册器后置处理器、`Bean`工厂后置处理器、`Bean`后置处理器. `Bean`定义注册器后置处理器和`Bean`工厂后置处理器针对容器本身生命周期的后置处理, `Bean`后置处理器针对`Bean`实例创建的生命周期. 配置类后置处理器同时实现了`Bean`定义注册器后置处理器和`Bean`工厂后置处理器接口, 这也是容器默认使用能够参与容器容器生命周期的处理器, 我们也可以实现自己的能够参与容器生命周期的处理器, 一般来说这已经没必要了, 容器本身提供的已完全能够满足需要. 我们更多的是使用配置类后置处理器支持的导入`Bean`定义注册员和`Bean`后置处理器来扩展新功能. 通过对配置类后置处理器的源码分析, 发现配置类后置处理器涉及到相关的源码相当多, 理解也比较难, 也是容器源码中很重要的一块源码.
+往前回顾容器概览中提到的三种类型后置处理器: `Bean`定义注册器后置处理器、`Bean`工厂后置处理器、`Bean`后置处理器. `Bean`定义注册器后置处理器和`Bean`工厂后置处理器针对容器本身生命周期的后置处理, `Bean`后置处理器针对`Bean`实例创建的生命周期. 配置类后置处理器同时实现了`Bean`定义注册器后置处理器和`Bean`工厂后置处理器接口, 这也是容器默认使用能够参与容器容器生命周期的处理器, 我们也可以实现自己的能够参与容器生命周期的处理器, 一般来说这已经没必要了, 容器本身提供的已完全能够满足需要. 我们更多的是使用配置类后置处理器支持的导入`Bean`定义注册员和`Bean`后置处理器来扩展新功能. 通过对配置类后置处理器的源码分析, 发现配置类后置处理器涉及到相关的源码相当多, 理解也比较难, 也是容器源码中很重要的一块源码.
 
-回忆一下在分析注解`Bean`定义读析器源码时说到的注册`Bean`定义工具类:
+在注解`Bean`定义读析器源码分析时, 曾说过注册`Bean`定义工具类, 该工具类主要用作注册一些内置的`Bean`定义:
 ![Spring 注解配置工具类图](images/spring-annotation-config-utils.png)
 
 对比了一下图, 到目前为止还仅仅只介绍了配置类后置处理器的源码, 后面那些就不一一介绍了, 接下来直接介绍容器`refresh`方法
+
+
+### 四、 `AbstractApplicationContext` 源码分析
+
+前面介绍了很多容器的辅助类的源码和原理, 接下来直接分析容器源码的运作原理. 在开始展述前, 先理清一个概念, 前面一直提到**容器**说词(特指`ApplicationContext`)和`Bean`工厂容器, 都是容器, 有时候把`Bean`工厂容器理解成容器, 这也没有错, 因为真正实现管理`Bean`实例的就是`Bean`工厂容器, 但是这里说的容器特指`ApplicationContext`容器. 根据**Spring**官方解释, 容器使用的是模板设计, 虽然实现很多接口, 但底层实现都是调用各种组合起来的基础组件, 如: `Bean`工厂容器、环境变量等基础组件. 所以说`ApplicationContext`容器是容器中的容器, 只是采用了模板设计方法更方便使用罢了. 有别于前面的整类源码分析, 下面将会采用每个独立方法函数进行源码解读, 由`refresh`方法为入口, 一步一步解读容器的运作原理.
+
+创建好注解Bean定义读析器、包扫描器和环境变量实例后进行刷新
+```java_holder_method_tree
+public void refresh() throws BeansException, IllegalStateException {
+  //同步
+  synchronized (this.startupShutdownMonitor) {
+    //在刷新前, 准备好环境相关的变量并校验属性值合法性: 子类可以添加属性文件源(PropertySource)、系统环境实例(Environment)
+    /*
+     * 提示: 获取系统环境实例, 内部会判断有没有对应的实例, 没有则创建一个, 一般来说子类会提前创建实例. 
+     *      在"注解`Bean`定义读析器(AnnotatedBeanDefinitionReader)"源码中曾有获取或创建系统环境实例, 所以在子类提前创建了
+     */
+    prepareRefresh();
+
+    //让子类创建并刷新容器内部的Bean工厂容器实例, 设置工厂ID
+    ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+    //准备好Bean工厂容器:
+    // 1.设置内部已知道的依赖关系, 如对aware接口相关依赖, 容器通过其他方式绑定依赖
+    // 2.添加两个BeanPostProcessor实例, 一个是回调实现aware接口的Bean, 设置依赖Bean的后置处理器; 一个是收集实现ApplicationListener接口的Bean的后置处理器
+    // 提示: 一般来说BeanPostProcessor应该比BeanFactoryPostProcessor要相对滞后创建实例, 而这两个比任何Bean前创建实例, 说明这两个Bean的特殊性
+    prepareBeanFactory(beanFactory);
+
+    try {
+      //允许子类处理Bean工厂容器实例
+      postProcessBeanFactory(beanFactory);
+
+      //注册并调用`Bean`工厂后置处理器, 先根据Bean定义创建实例, 然后调用对应的后置处理方法
+      //提示: 从这里开始及之后, 如果实例实现了aware或ApplicationListener接口, 那么前面提到的两个BeanPostProcessor开始产生作用了
+      invokeBeanFactoryPostProcessors(beanFactory);
+
+      //注册`Bean`后置处理器实例, 用于拦截其他普通Bean实例的创建
+      registerBeanPostProcessors(beanFactory);
+
+      //初始化国际化消息处理组件
+      initMessageSource();
+
+      //初始化应用事件广播器
+      initApplicationEventMulticaster();
+
+      //类似钩子函数, 允许子类处理其他的任务
+      onRefresh();
+
+      //注册应用监听器Bean实例
+      registerListeners();
+
+      //注册所有单例的Bean实例
+      finishBeanFactoryInitialization(beanFactory);
+
+      //完成初始化, 广播应用事件告知感兴趣的应用监听器
+      finishRefresh();
+    }
+
+    catch (BeansException ex) {
+      if (logger.isWarnEnabled()) {
+        logger.warn("Exception encountered during context initialization - " +
+            "cancelling refresh attempt: " + ex);
+      }
+
+      //销毁
+      destroyBeans();
+
+      // Reset 'active' flag.
+      cancelRefresh(ex);
+
+      //往外抛异常
+      throw ex;
+    }
+
+    finally {
+      //清空内部缓存的反射数据, 之后不会用到了
+      resetCommonCaches();
+    }
+  }
+}
+```
+
+刷新容器方法的代码结构、逻辑流程都很清晰明了, 简洁易懂. 整个流程是:
+> 1.准备配置环境 => 2.创建Bean工厂容器实例 => 3.准备Bean工厂容器 => 4.允许子类处理Bean工厂容器 => 5.注册并调用`Bean`工厂后置处理器(调用子类添加和配置注册的Bean) => 6.注册`Bean`后置处理器 => 7.初始化国际化消息处理组件 => 8.初始化应用事件广播器 => 9.回调子类刷新(钩子函数) => 10.注册应用监听器Bean实例 => 11.注册所有单例的Bean实例 => 12.完成初始化, 广播应用事件告知感兴趣的应用监听器 => 13.清空反射数据缓存
+
+1.准备配置环境
+```java_holder_method_tree
+protected void prepareRefresh() {
+  //设置容器激活标记
+  this.startupDate = System.currentTimeMillis();
+  this.closed.set(false);
+  this.active.set(true);
+
+  if (logger.isInfoEnabled()) {
+    logger.info("Refreshing " + this);
+  }
+
+  //让子类加载属性源, 标准实现子类是空实现, 在Web子类则加载ServletConfig属性源
+  initPropertySources();
+
+  //校验属性值合法性, 如属性源自身属性的占位符: ${placeholder}是否可找到替换值
+  getEnvironment().validateRequiredProperties();
+
+  //应用事件对象
+  this.earlyApplicationEvents = new LinkedHashSet<ApplicationEvent>();
+}
+```
+
+2.创建`Bean`工厂容器实例
+```java_holder_method_tree
+protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
+  //让子类刷新工厂容器
+  refreshBeanFactory();
+  //获取子类刷过的工厂容器
+  ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+  if (logger.isDebugEnabled()) {
+    logger.debug("Bean factory for " + getDisplayName() + ": " + beanFactory);
+  }
+  return beanFactory;
+}
+```
+抽象类本身不提供`Bean`工厂容器, 通过调用抽象方法由子类提供, 这样子类可以决定使用那个实现版本的`Bean`工厂容器, 默认是: `DefaultListableBeanFactory`
+
+3.准备`Bean`工厂容器
+```java_holder_method_tree
+protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+  //使用同一类加载
+  beanFactory.setBeanClassLoader(getClassLoader());
+  //设置表达式处理器
+  beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
+  //添加属性转资源类型转换器
+  beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
+
+  //注册aware感知后置处理器
+  beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+  //设置忽略对如下类型的依赖, 依赖这些没有意义
+  beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
+  beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
+  beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);
+  beanFactory.ignoreDependencyInterface(ApplicationEventPublisherAware.class);
+  beanFactory.ignoreDependencyInterface(MessageSourceAware.class);
+  beanFactory.ignoreDependencyInterface(ApplicationContextAware.class);
+
+  //Spring认为这些依赖已经满足, 实际是没有把这些注册为Bean, 依赖不了. 只能通过实现aware接口获得
+  beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
+  beanFactory.registerResolvableDependency(ResourceLoader.class, this); //this实现了该接口
+  beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this); //this实现了该接口
+  beanFactory.registerResolvableDependency(ApplicationContext.class, this); //this实现了该接口
+
+  //注册收集应用监听器Bean的后置处理器
+  beanFactory.addBeanPostProcessor(new ApplicationListenerDetector(this));
+
+  //Aspectj编入, 已经很少用到, 忽略
+  if (beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {
+    beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));
+    //仅用于类型匹配的类加载器
+    beanFactory.setTempClassLoader(new ContextTypeMatchClassLoader(beanFactory.getBeanClassLoader()));
+  }
+
+  //注册环境变量为Bean, 让代码可以直接依赖这个Bean, 建议通过实现EnviromentAware接口获取
+  if (!beanFactory.containsLocalBean(ENVIRONMENT_BEAN_NAME)) {
+    beanFactory.registerSingleton(ENVIRONMENT_BEAN_NAME, getEnvironment());
+  }
+  //注册系统属性为Bean
+  if (!beanFactory.containsLocalBean(SYSTEM_PROPERTIES_BEAN_NAME)) {
+    beanFactory.registerSingleton(SYSTEM_PROPERTIES_BEAN_NAME, getEnvironment().getSystemProperties());
+  }
+   //注册系统环境为Bean
+  if (!beanFactory.containsLocalBean(SYSTEM_ENVIRONMENT_BEAN_NAME)) {
+    beanFactory.registerSingleton(SYSTEM_ENVIRONMENT_BEAN_NAME, getEnvironment().getSystemEnvironment());
+  }
+}
+```
+
+4.允许子类处理Bean工厂容器
+空实现, 交给子类处理
+
+5.注册并调用`Bean`工厂后置处理器(调用子类添加和配置注册的Bean)
+```java_holder_method_tree
+protected void invokeBeanFactoryPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+  //调用所有BeanFactoryPostProcessor后置处理器, 处理流程包括分类、优先级、排序. 不展开讲解
+  PostProcessorRegistrationDelegate.invokeBeanFactoryPostProcessors(beanFactory, getBeanFactoryPostProcessors());
+
+  //Aspectj编入, 忽略
+  if (beanFactory.getTempClassLoader() == null && beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {
+    beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));
+    beanFactory.setTempClassLoader(new ContextTypeMatchClassLoader(beanFactory.getBeanClassLoader()));
+  }
+}
+```
+这里包含两种类型后置处理器调用: `BeanDefinitionFactoryPostProcessor`和`BeanFactoryPostProcessor`, 主要调用前面解读过的`ConfigurationClassPostProcessor`配置类后置处理器, 该类同时实现了这两个接口. 创建注解`Bean`定义读析器实例时已将配置类后置处理器注册为`Bean`定义. 所以这里必然会调用到配置类后置处理器.
+
+6.注册`Bean`后置处理器
+```java_holder_method_tree
+protected void registerBeanPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+  //收集所有该类型的Bean, 分类、优先级、排序然后注册为Bean. 不展开讲解
+  PostProcessorRegistrationDelegate.registerBeanPostProcessors(beanFactory, this);
+}
+```
+
+7.初始化国际化消息处理组件
+```java_holder_method_tree
+protected void initMessageSource() {
+  ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+  if (beanFactory.containsLocalBean(MESSAGE_SOURCE_BEAN_NAME)) {
+    //如果存在自定义
+    this.messageSource = beanFactory.getBean(MESSAGE_SOURCE_BEAN_NAME, MessageSource.class);
+    //让当前消息源感知到父容器的消息源
+    if (this.parent != null && this.messageSource instanceof HierarchicalMessageSource) {
+      HierarchicalMessageSource hms = (HierarchicalMessageSource) this.messageSource;
+      if (hms.getParentMessageSource() == null) {
+        //如果当前消息源没有父消息源, 那就设置父容器的吧
+        hms.setParentMessageSource(getInternalParentMessageSource());
+      }
+    }
+    if (logger.isDebugEnabled()) {
+      logger.debug("Using MessageSource [" + this.messageSource + "]");
+    }
+  }
+  else {
+    //创建空的消息源组件以满足处理消息请求, 就是空响应
+    DelegatingMessageSource dms = new DelegatingMessageSource();
+    dms.setParentMessageSource(getInternalParentMessageSource());
+    this.messageSource = dms;
+    beanFactory.registerSingleton(MESSAGE_SOURCE_BEAN_NAME, this.messageSource);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Unable to locate MessageSource with name '" + MESSAGE_SOURCE_BEAN_NAME +
+          "': using default [" + this.messageSource + "]");
+    }
+  }
+}
+```
+根据源码国际化消息源组件非必须的, 感兴趣消息源源码细节的请自行查阅
+
+8.初始化应用事件广播器
+```java_holder_method_tree
+protected void initApplicationEventMulticaster() {
+  ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+  if (beanFactory.containsLocalBean(APPLICATION_EVENT_MULTICASTER_BEAN_NAME)) {
+    //存在自定义的, 从Bean工厂容器获取并设置到当前容器
+    this.applicationEventMulticaster =
+        beanFactory.getBean(APPLICATION_EVENT_MULTICASTER_BEAN_NAME, ApplicationEventMulticaster.class);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Using ApplicationEventMulticaster [" + this.applicationEventMulticaster + "]");
+    }
+  }
+  else {
+    //注册默认的应用事件广播器
+    this.applicationEventMulticaster = new SimpleApplicationEventMulticaster(beanFactory);
+    beanFactory.registerSingleton(APPLICATION_EVENT_MULTICASTER_BEAN_NAME, this.applicationEventMulticaster);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Unable to locate ApplicationEventMulticaster with name '" +
+          APPLICATION_EVENT_MULTICASTER_BEAN_NAME +
+          "': using default [" + this.applicationEventMulticaster + "]");
+    }
+  }
+}
+```
+
+9.回调子类刷新(钩子函数)  
+初始化环境准备好了, 就差创建自定义的`Bean`实例, 先交给子类需不需要处理其他的任务
+
+10.注册应用监听器Bean实例
+```java_holder_method_tree
+protected void registerListeners() {
+  //子类添加的实例, 注册BeanFactoryPostProcessor和BeanPostProcessor实例时是应用监听器Bean, 把这些监听器都注册到应用事件广播器
+  for (ApplicationListener<?> listener : getApplicationListeners()) {
+    getApplicationEventMulticaster().addApplicationListener(listener);
+  }
+
+  //搜索所有还未注册的监听器(还没创建实例), 把这些监听器名称都注册到应用事件广播器
+  //提示: 官方说先不要在这初始化, 在后面的某个流程初始化时可以让后置处理器做点啥. 其实这个点后置处理器都已注册完了
+  String[] listenerBeanNames = getBeanNamesForType(ApplicationListener.class, true, false);
+  for (String listenerBeanName : listenerBeanNames) {
+    getApplicationEventMulticaster().addApplicationListenerBean(listenerBeanName);
+  }
+
+  // Publish early application events now that we finally have a multicaster...
+  //已存在的早期事件可以广播了, 广播器、监听器都准备好了
+  Set<ApplicationEvent> earlyEventsToProcess = this.earlyApplicationEvents;
+  this.earlyApplicationEvents = null;
+  if (earlyEventsToProcess != null) {
+    for (ApplicationEvent earlyEvent : earlyEventsToProcess) {
+      getApplicationEventMulticaster().multicastEvent(earlyEvent);
+    }
+  }
+}
+```
+
+11.注册所有单例的Bean实例
+```java_holder_method_tree
+protected void finishBeanFactoryInitialization(ConfigurableListableBeanFactory beanFactory) {
+  //设置工厂容器的类型转换器
+  if (beanFactory.containsBean(CONVERSION_SERVICE_BEAN_NAME) &&
+      beanFactory.isTypeMatch(CONVERSION_SERVICE_BEAN_NAME, ConversionService.class)) {
+    beanFactory.setConversionService(
+        beanFactory.getBean(CONVERSION_SERVICE_BEAN_NAME, ConversionService.class));
+  }
+  
+  //如果没有注册PropertyPlaceholderConfigurer这样的Bean, 那么设置默认的内嵌值解析器, 主要解决注解属性值替换.
+  if (!beanFactory.hasEmbeddedValueResolver()) {
+    beanFactory.addEmbeddedValueResolver(new StringValueResolver() {
+      @Override
+      public String resolveStringValue(String strVal) {
+        return getEnvironment().resolvePlaceholders(strVal);
+      }
+    });
+  }
+
+  //忽略.
+  String[] weaverAwareNames = beanFactory.getBeanNamesForType(LoadTimeWeaverAware.class, false, false);
+  for (String weaverAwareName : weaverAwareNames) {
+    getBean(weaverAwareName);
+  }
+
+  //停止临时类加载器(类型匹配用到)
+  beanFactory.setTempClassLoader(null);
+
+  //冻结对Bean定义元数据信息进行修改
+  beanFactory.freezeConfiguration();
+
+  //注册所有单例, 不包括支持延迟创建实例的Bean
+  beanFactory.preInstantiateSingletons();
+}
+```
+
+12.完成初始化, 广播应用事件告知感兴趣的应用监听器
+```java_holder_method_tree
+protected void finishRefresh() {
+  //创建Bean实例周期处理器, 实例周期是指实例初始化完成后整个实例的周期: 实例初始化完成后, 实例销毁销毁前
+  initLifecycleProcessor();
+
+  //刷新Bean实例周期处理器, 调用Bean实例周期start方法. 仅对那些实现LifeCycle接口的Bean实例才有实例周期
+  getLifecycleProcessor().onRefresh();
+
+  //广播一个容器刷新完毕事件
+  publishEvent(new ContextRefreshedEvent(this));
+
+  // Participate in LiveBeansView MBean, if active.
+  LiveBeansView.registerApplicationContext(this);
+}
+```
+回顾之前的分析, 在整个容器初始化过程中存在三个子周期: `Bean`工厂容器生命周期、`Bean`生命周期及现在的`Bean`实例周期. 在广播应用事件前先创建`Bean`实例周期处理器, `Bean`实例周期处理器处理`Bean`实例初始化完成后和实例销毁前两个周期, 通过实现`LifeCycle`接口`start`和`stop`方法来控制. 在广播一个容器初始完成事件前, 先让`Bean`实例周期处理器触发一下`Bean`实例的开始周期, 然后整个容器初始化准备完毕.
+
